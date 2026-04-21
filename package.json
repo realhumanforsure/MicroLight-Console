@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "dev": "npm run build -w @microlight/shared && npm run dev -w @microlight/desktop",
-    "build": "npm run build -w @microlight/shared && npm run build -w @microlight/server && npm run build -w @microlight/desktop"
+    "build": "npm run build -w @microlight/shared && npm run build -w @microlight/server && npm run build -w @microlight/desktop",
+    "dist:win": "npm run build && npm run package:win -w @microlight/desktop"
   },
   "engines": {
     "node": ">=22.0.0",

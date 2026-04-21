@@ -1,7 +1,7 @@
 import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   APP_NAME,
   DEFAULT_CLOSE_ACTION,
@@ -16,8 +16,10 @@ const __dirname = path.dirname(__filename)
 
 let mainWindow: BrowserWindow | null = null
 let backendProcess: ChildProcessWithoutNullStreams | null = null
+let embeddedBackend: { close: () => Promise<void> } | null = null
 let tray: Tray | null = null
 let isQuitting = false
+let shutdownInProgress = false
 let desktopSettings: Pick<AppSettings, 'trayEnabled' | 'closeAction'> = {
   trayEnabled: DEFAULT_TRAY_ENABLED,
   closeAction: DEFAULT_CLOSE_ACTION
@@ -26,7 +28,8 @@ let desktopSettings: Pick<AppSettings, 'trayEnabled' | 'closeAction'> = {
 function getBackendEnv() {
   return {
     ...process.env,
-    MICROLIGHT_SERVER_PORT: String(DEFAULT_SERVER_PORT)
+    MICROLIGHT_SERVER_PORT: String(DEFAULT_SERVER_PORT),
+    NODE_ENV: app.isPackaged ? 'production' : process.env.NODE_ENV ?? 'development'
   }
 }
 
@@ -35,8 +38,28 @@ function resolveDevServerEntry() {
   return path.resolve(app.getAppPath(), relativeEntry)
 }
 
-function startBackend() {
-  if (backendProcess) {
+function resolvePackagedServerEntry() {
+  return path.join(app.getAppPath(), '.package-assets', 'server', 'dist', 'index.js')
+}
+
+async function startBackend() {
+  if (backendProcess || embeddedBackend) {
+    return
+  }
+
+  if (app.isPackaged) {
+    process.env.MICROLIGHT_SERVER_PORT = String(DEFAULT_SERVER_PORT)
+    process.env.NODE_ENV = 'production'
+    const serverEntry = resolvePackagedServerEntry()
+    const serverModule = (await import(pathToFileURL(serverEntry).href)) as {
+      startServer?: () => Promise<{ close: () => Promise<void> }>
+    }
+
+    if (!serverModule.startServer) {
+      throw new Error('Packaged backend entry does not export startServer().')
+    }
+
+    embeddedBackend = await serverModule.startServer()
     return
   }
 
@@ -61,13 +84,34 @@ function startBackend() {
   })
 }
 
-function stopBackend() {
-  if (!backendProcess) {
-    return
+async function stopBackend() {
+  if (backendProcess) {
+    const runningProcess = backendProcess
+
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        if (!runningProcess.killed) {
+          runningProcess.kill('SIGKILL')
+        }
+
+        resolve()
+      }, 5000)
+
+      runningProcess.once('exit', () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+
+      runningProcess.kill('SIGTERM')
+    })
+
+    backendProcess = null
   }
 
-  backendProcess.kill('SIGTERM')
-  backendProcess = null
+  if (embeddedBackend) {
+    await embeddedBackend.close()
+    embeddedBackend = null
+  }
 }
 
 async function createWindow() {
@@ -194,7 +238,7 @@ ipcMain.handle('app:get-runtime-info', async () => {
   return {
     appName: APP_NAME,
     serverUrl: DEFAULT_SERVER_URL,
-    backendPid: backendProcess?.pid ?? null
+    backendPid: backendProcess?.pid ?? (embeddedBackend ? process.pid : null)
   }
 })
 
@@ -219,7 +263,7 @@ ipcMain.handle('app:apply-desktop-settings', async (_, settings: Pick<AppSetting
 })
 
 app.whenReady().then(async () => {
-  startBackend()
+  await startBackend()
   await createWindow()
   applyDesktopSettings(desktopSettings)
 
@@ -240,7 +284,17 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  if (shutdownInProgress || (!backendProcess && !embeddedBackend)) {
+    isQuitting = true
+    return
+  }
+
+  event.preventDefault()
   isQuitting = true
-  stopBackend()
+  shutdownInProgress = true
+  void stopBackend().finally(() => {
+    shutdownInProgress = false
+    app.exit()
+  })
 })

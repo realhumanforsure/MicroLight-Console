@@ -7,6 +7,8 @@ Thumbs.db
 *.log
 apps/*/dist
 apps/*/out
+apps/desktop/.package-assets
+apps/desktop/release
 packages/*/dist
 docs
 README.md
