@@ -10,7 +10,8 @@
     "dev": "cross-env MICROLIGHT_SERVER_DEV_ENTRY=../server/src/index.ts electron-vite dev",
     "build": "vue-tsc --noEmit && electron-vite build",
     "prepare:package": "node ./scripts/prepare-package.mjs",
-    "package:win": "npm run prepare:package && electron-builder --win nsis",
+    "restore:dev-native": "npm rebuild better-sqlite3 -w @microlight/server",
+    "package:win": "node ./scripts/package-win.mjs",
     "dist:win": "npm run build && npm run package:win"
   },
   "dependencies": {

@@ -1,7 +1,12 @@
 interface RuntimeInfo {
   appName: string
+  appVersion: string
   serverUrl: string
   backendPid: number | null
+  isPackaged: boolean
+  platform: NodeJS.Platform
+  exePath: string
+  userDataPath: string
 }
 
 interface Window {

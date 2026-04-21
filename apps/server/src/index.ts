@@ -10,6 +10,7 @@ import {
   DEFAULT_SERVER_HOST,
   DEFAULT_SERVER_PORT,
   type HealthResponse,
+  type ProjectPreflightRequest,
   type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
   type RuntimeDetectionRequest,
@@ -19,6 +20,7 @@ import {
   type ServiceStopRequest
 } from '@microlight/shared'
 import { persistenceService } from './persistence.js'
+import { generateProjectPreflightReport } from './preflight.js'
 import { scanProject } from './project-scanner.js'
 import { detectRuntimeTools } from './runtime-tools.js'
 import { serviceRuntimeManager } from './service-runtime.js'
@@ -98,6 +100,18 @@ export async function createServer() {
       }
     }
   )
+
+  app.post<{ Body: ProjectPreflightRequest }>('/api/projects/preflight', async (request, reply) => {
+    try {
+      return await generateProjectPreflightReport(request.body.rootPath)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to run project preflight'
+      }
+    }
+  })
 
   app.post<{ Body: RuntimeDetectionRequest }>('/api/runtime/detect', async (request, reply) => {
     try {

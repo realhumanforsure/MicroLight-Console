@@ -10,9 +10,25 @@ interface LocaleMessages {
   refreshHealth: string
   runtimeTitle: string
   runtimeApp: string
+  runtimeVersion: string
   runtimeBackendUrl: string
   runtimeBackendPid: string
+  runtimeMode: string
+  runtimeModePackaged: string
+  runtimeModeDev: string
+  runtimePlatform: string
+  runtimeExePath: string
+  runtimeUserDataPath: string
   runtimePending: string
+  preflightTitle: string
+  preflightDescription: string
+  preflightRefresh: string
+  preflightChecking: string
+  preflightPass: string
+  preflightWarn: string
+  preflightFail: string
+  preflightGeneratedAt: string
+  preflightEmpty: string
   settingsTitle: string
   settingsGeneralTitle: string
   settingsGeneralDescription: string
@@ -115,9 +131,25 @@ export const messages: Record<Locale, LocaleMessages> = {
     refreshHealth: '刷新健康检查',
     runtimeTitle: '运行时信息',
     runtimeApp: '应用名称',
+    runtimeVersion: '应用版本',
     runtimeBackendUrl: '后端地址',
     runtimeBackendPid: '后端进程 PID',
+    runtimeMode: '运行模式',
+    runtimeModePackaged: '已打包',
+    runtimeModeDev: '开发态',
+    runtimePlatform: '运行平台',
+    runtimeExePath: '可执行文件',
+    runtimeUserDataPath: '用户数据目录',
     runtimePending: '等待中',
+    preflightTitle: '环境与项目预检',
+    preflightDescription: '把 MVP 验收中最关键的检查项提前跑一遍，帮助我们更快定位阻塞点。',
+    preflightRefresh: '刷新预检',
+    preflightChecking: '正在执行预检...',
+    preflightPass: '通过',
+    preflightWarn: '警告',
+    preflightFail: '失败',
+    preflightGeneratedAt: '最近预检时间',
+    preflightEmpty: '当前还没有预检结果。',
     settingsTitle: '设置',
     settingsGeneralTitle: '通用设置',
     settingsGeneralDescription: '配置默认语言、构建器和基础构建偏好。',
@@ -216,9 +248,25 @@ export const messages: Record<Locale, LocaleMessages> = {
     refreshHealth: 'Refresh Health',
     runtimeTitle: 'Runtime',
     runtimeApp: 'App',
+    runtimeVersion: 'Version',
     runtimeBackendUrl: 'Backend URL',
     runtimeBackendPid: 'Backend PID',
+    runtimeMode: 'Runtime Mode',
+    runtimeModePackaged: 'Packaged',
+    runtimeModeDev: 'Development',
+    runtimePlatform: 'Platform',
+    runtimeExePath: 'Executable Path',
+    runtimeUserDataPath: 'User Data Path',
     runtimePending: 'Pending',
+    preflightTitle: 'Environment and Project Preflight',
+    preflightDescription: 'Run the most important MVP readiness checks up front so blockers are easier to spot.',
+    preflightRefresh: 'Refresh Preflight',
+    preflightChecking: 'Running preflight...',
+    preflightPass: 'Pass',
+    preflightWarn: 'Warn',
+    preflightFail: 'Fail',
+    preflightGeneratedAt: 'Last Preflight Time',
+    preflightEmpty: 'No preflight report is available yet.',
     settingsTitle: 'Settings',
     settingsGeneralTitle: 'General',
     settingsGeneralDescription: 'Configure the default language, build tool, and basic build preferences.',

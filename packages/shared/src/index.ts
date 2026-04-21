@@ -18,6 +18,17 @@ export interface HealthResponse {
   timestamp: string
 }
 
+export interface DesktopRuntimeInfo {
+  appName: string
+  appVersion: string
+  backendPid: number | null
+  serverUrl: string
+  isPackaged: boolean
+  platform: NodeJS.Platform
+  exePath: string
+  userDataPath: string
+}
+
 export interface ProjectScanRequest {
   rootPath: string
 }
@@ -78,6 +89,32 @@ export interface RuntimeDetectionResult {
   maven: ToolAvailability
   mvnd: ToolAvailability
   recommendedBuildTool: BuildToolKind | null
+}
+
+export interface ProjectPreflightRequest {
+  rootPath: string | null
+}
+
+export type PreflightCheckStatus = 'pass' | 'warn' | 'fail'
+
+export interface PreflightCheck {
+  id: string
+  label: string
+  status: PreflightCheckStatus
+  detail: string
+}
+
+export interface PreflightSummary {
+  passCount: number
+  warnCount: number
+  failCount: number
+}
+
+export interface ProjectPreflightReport {
+  generatedAt: string
+  rootPath: string | null
+  summary: PreflightSummary
+  checks: PreflightCheck[]
 }
 
 export interface ServiceLaunchRequest {

@@ -11,8 +11,12 @@ import {
   type AppSettingsUpdateRequest,
   type AppStateResponse,
   type BuildToolPreference,
+  type DesktopRuntimeInfo,
   type DesktopCloseAction,
   type HealthResponse,
+  type PreflightCheckStatus,
+  type ProjectPreflightReport,
+  type ProjectPreflightRequest,
   type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
   type ProjectScanResult,
@@ -26,12 +30,6 @@ import {
 } from '@microlight/shared'
 import { DEFAULT_LOCALE, messages, type Locale } from './locales'
 
-interface RuntimeInfo {
-  appName: string
-  backendPid: number | null
-  serverUrl: string
-}
-
 interface ServiceLaunchConfig {
   runtimePort: string
   buildToolPreference: BuildToolPreference
@@ -41,8 +39,9 @@ interface ServiceLaunchConfig {
   springProfiles: string
 }
 
-const runtimeInfo = ref<RuntimeInfo | null>(null)
+const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
+const preflightReport = ref<ProjectPreflightReport | null>(null)
 const selectedProjectPath = ref('')
 const projectScan = ref<ProjectScanResult | null>(null)
 const runtimeDetection = ref<RuntimeDetectionResult | null>(null)
@@ -60,6 +59,7 @@ const appSettings = ref<AppSettings>({
 const recentProjects = ref<RecentProject[]>([])
 const selectedLogServiceId = ref('')
 const loading = ref(true)
+const preflightLoading = ref(false)
 const scanning = ref(false)
 const detecting = ref(false)
 const errorMessage = ref('')
@@ -152,6 +152,7 @@ async function initializeApp() {
   try {
     runtimeInfo.value = await window.microlight.getRuntimeInfo()
     await Promise.all([loadHealth(), loadAppState()])
+    await refreshPreflight()
 
     if (appSettings.value.lastProjectPath) {
       selectedProjectPath.value = appSettings.value.lastProjectPath
@@ -172,6 +173,36 @@ async function loadHealth() {
   }
 
   health.value = (await response.json()) as HealthResponse
+}
+
+async function refreshPreflight() {
+  preflightLoading.value = true
+
+  try {
+    const payload: ProjectPreflightRequest = {
+      rootPath: selectedProjectPath.value.trim() || null
+    }
+
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/projects/preflight`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      const body = (await response.json()) as { message?: string }
+      throw new Error(body.message ?? `Preflight failed: ${response.status}`)
+    }
+
+    preflightReport.value = (await response.json()) as ProjectPreflightReport
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown preflight error'
+    preflightReport.value = null
+  } finally {
+    preflightLoading.value = false
+  }
 }
 
 async function loadAppState() {
@@ -310,6 +341,7 @@ async function scanProject() {
     runtimeErrorMessage.value = ''
     settingsMessage.value = ''
     await loadAppState()
+    await refreshPreflight()
   } catch (error) {
     scanErrorMessage.value = error instanceof Error ? error.message : 'Unknown scan error'
     projectScan.value = null
@@ -414,6 +446,18 @@ function getCloseActionLabel(closeAction: DesktopCloseAction, trayEnabled: boole
   }
 
   return closeAction === 'hide' ? text.value.settingsCloseActionHide : text.value.settingsCloseActionQuit
+}
+
+function getPreflightStatusLabel(status: PreflightCheckStatus) {
+  if (status === 'pass') {
+    return text.value.preflightPass
+  }
+
+  if (status === 'warn') {
+    return text.value.preflightWarn
+  }
+
+  return text.value.preflightFail
 }
 
 function getServiceStatusLabel(status: ServiceInstanceState['status']) {
@@ -678,12 +722,38 @@ const closeActionOptions = computed(() => [
             <dd>{{ runtimeInfo?.appName ?? APP_NAME }}</dd>
           </div>
           <div class="row">
+            <dt>{{ text.runtimeVersion }}</dt>
+            <dd>{{ runtimeInfo?.appVersion ?? health?.version ?? text.runtimePending }}</dd>
+          </div>
+          <div class="row">
             <dt>{{ text.runtimeBackendUrl }}</dt>
             <dd>{{ runtimeInfo?.serverUrl ?? DEFAULT_SERVER_URL }}</dd>
           </div>
           <div class="row">
             <dt>{{ text.runtimeBackendPid }}</dt>
             <dd>{{ runtimeInfo?.backendPid ?? text.runtimePending }}</dd>
+          </div>
+          <div class="row">
+            <dt>{{ text.runtimeMode }}</dt>
+            <dd>{{
+              runtimeInfo
+                ? runtimeInfo.isPackaged
+                  ? text.runtimeModePackaged
+                  : text.runtimeModeDev
+                : text.runtimePending
+            }}</dd>
+          </div>
+          <div class="row">
+            <dt>{{ text.runtimePlatform }}</dt>
+            <dd>{{ runtimeInfo?.platform ?? text.runtimePending }}</dd>
+          </div>
+          <div class="row">
+            <dt>{{ text.runtimeExePath }}</dt>
+            <dd>{{ runtimeInfo?.exePath ?? text.runtimePending }}</dd>
+          </div>
+          <div class="row">
+            <dt>{{ text.runtimeUserDataPath }}</dt>
+            <dd>{{ runtimeInfo?.userDataPath ?? text.runtimePending }}</dd>
           </div>
         </dl>
       </article>
@@ -830,6 +900,68 @@ const closeActionOptions = computed(() => [
               <dd>{{ health?.timestamp }}</dd>
             </div>
           </dl>
+        </template>
+      </article>
+
+      <article class="panel">
+        <div class="project-panel__subheader">
+          <h2>{{ text.preflightTitle }}</h2>
+          <button
+            class="secondary-button"
+            type="button"
+            @click="refreshPreflight"
+          >
+            {{ preflightLoading ? text.preflightChecking : text.preflightRefresh }}
+          </button>
+        </div>
+
+        <p class="muted">{{ text.preflightDescription }}</p>
+
+        <template v-if="preflightLoading">
+          <p class="muted">{{ text.preflightChecking }}</p>
+        </template>
+        <template v-else-if="preflightReport">
+          <div class="scan-meta">
+            <div class="pill">
+              {{ text.preflightPass }}: {{ preflightReport.summary.passCount }}
+            </div>
+            <div class="pill ghost">
+              {{ text.preflightWarn }}: {{ preflightReport.summary.warnCount }}
+            </div>
+            <div class="pill ghost">
+              {{ text.preflightFail }}: {{ preflightReport.summary.failCount }}
+            </div>
+          </div>
+
+          <div class="workspace-meta">
+            <span>{{ text.preflightGeneratedAt }}</span>
+            <strong>{{ preflightReport.generatedAt }}</strong>
+          </div>
+
+          <div class="preflight-list">
+            <article
+              v-for="check in preflightReport.checks"
+              :key="check.id"
+              class="preflight-item"
+            >
+              <div class="project-panel__subheader">
+                <strong>{{ check.label }}</strong>
+                <span
+                  class="pill"
+                  :class="{
+                    ghost: check.status === 'warn',
+                    'pill--danger': check.status === 'fail'
+                  }"
+                >
+                  {{ getPreflightStatusLabel(check.status) }}
+                </span>
+              </div>
+              <p>{{ check.detail }}</p>
+            </article>
+          </div>
+        </template>
+        <template v-else>
+          <p class="muted">{{ text.preflightEmpty }}</p>
         </template>
       </article>
     </section>

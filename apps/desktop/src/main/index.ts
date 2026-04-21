@@ -4,10 +4,12 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   APP_NAME,
+  APP_VERSION,
   DEFAULT_CLOSE_ACTION,
   DEFAULT_SERVER_PORT,
   DEFAULT_SERVER_URL,
   DEFAULT_TRAY_ENABLED,
+  type DesktopRuntimeInfo,
   type AppSettings
 } from '@microlight/shared'
 
@@ -234,11 +236,16 @@ function showMainWindow() {
   mainWindow.focus()
 }
 
-ipcMain.handle('app:get-runtime-info', async () => {
+ipcMain.handle('app:get-runtime-info', async (): Promise<DesktopRuntimeInfo> => {
   return {
     appName: APP_NAME,
+    appVersion: APP_VERSION,
     serverUrl: DEFAULT_SERVER_URL,
-    backendPid: backendProcess?.pid ?? (embeddedBackend ? process.pid : null)
+    backendPid: backendProcess?.pid ?? (embeddedBackend ? process.pid : null),
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    exePath: app.getPath('exe'),
+    userDataPath: app.getPath('userData')
   }
 })
 

@@ -360,6 +360,31 @@ h1 {
   color: #b7c8e6;
 }
 
+.pill--danger {
+  background: rgba(255, 126, 126, 0.2);
+  color: #ffd0d0;
+}
+
+.preflight-list {
+  display: grid;
+  gap: 12px;
+}
+
+.preflight-item {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(10, 19, 34, 0.85);
+  border: 1px solid rgba(189, 210, 255, 0.1);
+}
+
+.preflight-item p {
+  margin: 0;
+  color: #9cb0ce;
+  line-height: 1.6;
+}
+
 .module-list {
   display: grid;
   gap: 16px;
@@ -498,6 +523,7 @@ dd {
   margin: 0;
   text-align: right;
   color: #edf4ff;
+  word-break: break-all;
 }
 
 .muted {
