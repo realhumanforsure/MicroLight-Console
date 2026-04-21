@@ -47,13 +47,7 @@ export async function scanProject(rootPath: string): Promise<ProjectScanResult> 
     throw new Error('Unable to parse root pom.xml')
   }
 
-  const moduleRelativePaths = normalizeArray(rootProject.modules?.module)
-  const modulePaths = [normalizedRootPath]
-
-  for (const moduleRelativePath of moduleRelativePaths) {
-    modulePaths.push(path.resolve(normalizedRootPath, moduleRelativePath))
-  }
-
+  const modulePaths = await collectModulePaths(normalizedRootPath)
   const modules = await Promise.all(modulePaths.map((modulePath) => scanModule(modulePath)))
 
   return {
@@ -64,6 +58,39 @@ export async function scanProject(rootPath: string): Promise<ProjectScanResult> 
     modules,
     savedLastSelectedServiceId:
       persistenceService.getProjectPreference(normalizedRootPath)?.lastSelectedServiceId ?? null
+  }
+}
+
+async function collectModulePaths(rootPath: string) {
+  const visited = new Set<string>()
+  const modulePaths: string[] = []
+
+  await visitModule(rootPath, visited, modulePaths)
+
+  return modulePaths
+}
+
+async function visitModule(modulePath: string, visited: Set<string>, modulePaths: string[]) {
+  const normalizedModulePath = path.resolve(modulePath)
+
+  if (visited.has(normalizedModulePath)) {
+    return
+  }
+
+  visited.add(normalizedModulePath)
+  modulePaths.push(normalizedModulePath)
+
+  const pom = await readPom(path.join(normalizedModulePath, 'pom.xml'))
+  const project = pom.project
+
+  if (!project) {
+    throw new Error(`Unable to parse pom.xml in ${normalizedModulePath}`)
+  }
+
+  const childModules = normalizeArray(project.modules?.module)
+
+  for (const childModule of childModules) {
+    await visitModule(path.resolve(normalizedModulePath, childModule), visited, modulePaths)
   }
 }
 

@@ -89,6 +89,7 @@ class ServiceRuntimeManager {
     this.emitState(state)
 
     const buildArgs = createBuildArgs(request, buildCommand.kind)
+    this.appendLog(state, `[build] Running command: ${buildCommand.command} ${buildArgs.join(' ')}`)
     const buildResult = await runStreamingCommand(
       buildCommand.command,
       buildArgs,
@@ -104,7 +105,7 @@ class ServiceRuntimeManager {
       state.lastExitCode = buildResult.exitCode
       state.lastUpdatedAt = new Date().toISOString()
       this.emitState(state)
-      throw new Error(`Build failed with exit code ${buildResult.exitCode}`)
+      throw new Error(createBuildFailureMessage(buildResult, request))
     }
 
     const jarPath = await resolveRunnableJar(request.modulePath)
@@ -393,11 +394,82 @@ async function resolveRunnableJar(modulePath: string) {
   )
 
   if (jarCandidates.length === 0) {
-    throw new Error('No runnable jar was found in the module target directory.')
+    throw new Error(
+      '未在目标模块的 target 目录中找到可运行的 jar。请确认该模块的 packaging 为 jar，且 spring-boot-maven-plugin 已正确执行 repackage。'
+    )
   }
 
   jarCandidates.sort((left, right) => right.mtimeMs - left.mtimeMs)
   return jarCandidates[0].fullPath
+}
+
+function createBuildFailureMessage(
+  buildResult: { stdout: string; stderr: string; exitCode: number },
+  request: ServiceLaunchRequest
+) {
+  const combinedOutput = `${buildResult.stdout}\n${buildResult.stderr}`
+  const normalizedOutput = combinedOutput.replace(/\r/g, '')
+  const hint = inferBuildFailureHint(normalizedOutput, request, buildResult.exitCode)
+  const summaryLine = extractBuildSummaryLine(normalizedOutput)
+
+  return [hint, summaryLine].filter((part) => part && part.length > 0).join(' ')
+}
+
+function inferBuildFailureHint(output: string, request: ServiceLaunchRequest, exitCode: number) {
+  const relativeModulePath = normalizeModuleSelector(request.rootPath, request.modulePath)
+
+  if (/Could not find the selected project in the reactor/i.test(output)) {
+    const selectorHint =
+      relativeModulePath === null
+        ? '当前构建针对根模块执行。'
+        : `当前使用的模块选择器是 ${relativeModulePath}。`
+
+    return `多模块构建失败：Maven 没有在 reactor 中找到目标模块。请检查父 pom 的 modules 配置、模块目录层级和聚合结构。${selectorHint}`
+  }
+
+  if (/Non-resolvable parent POM/i.test(output)) {
+    return '构建失败：父 POM 无法解析。请确认父模块版本、相对路径或仓库访问配置是否正确。'
+  }
+
+  if (/Could not resolve dependencies|Failed to collect dependencies/i.test(output)) {
+    return '构建失败：依赖解析没有通过。请检查仓库网络、私服权限以及依赖版本是否可用。'
+  }
+
+  if (/COMPILATION ERROR|maven-compiler-plugin/i.test(output)) {
+    return '构建失败：Java 编译没有通过。请检查源码报错、JDK 版本和注解处理器配置。'
+  }
+
+  if (/There are test failures|SurefireBooterForkException|Failed tests/i.test(output)) {
+    return '构建失败：测试阶段没有通过。可以先启用“跳过测试”确认是否为测试用例阻塞。'
+  }
+
+  if (/spring-boot-maven-plugin:.*repackage/i.test(output)) {
+    return '构建失败：Spring Boot 重打包阶段没有通过。请检查该模块是否为可启动服务模块，以及插件配置是否正确。'
+  }
+
+  if (/The goal you specified requires a project to execute but there is no POM in this directory/i.test(output)) {
+    return '构建失败：当前工作目录没有找到可执行的 pom.xml。请确认打开的是 Maven 项目根目录。'
+  }
+
+  return `构建失败，退出码 ${exitCode}。请查看最近日志中的 Maven 错误详情。`
+}
+
+function extractBuildSummaryLine(output: string) {
+  const lines = output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+
+  const preferredLine =
+    lines.find((line) => /^\[ERROR\]\s+Failed to execute goal/i.test(line)) ??
+    lines.find((line) => /^\[ERROR\]\s+/i.test(line)) ??
+    lines.find((line) => /BUILD FAILURE/i.test(line))
+
+  if (!preferredLine) {
+    return ''
+  }
+
+  return `摘要：${preferredLine.replace(/^\[ERROR\]\s*/i, '')}`
 }
 
 function parseCommandLineArguments(input: string) {
