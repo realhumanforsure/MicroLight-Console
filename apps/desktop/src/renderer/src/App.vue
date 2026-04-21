@@ -3,13 +3,17 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'v
 import {
   APP_NAME,
   DEFAULT_BUILD_TOOL_PREFERENCE,
+  DEFAULT_CLOSE_ACTION,
   DEFAULT_SERVER_URL,
   DEFAULT_SKIP_TESTS,
+  DEFAULT_TRAY_ENABLED,
   type AppSettings,
   type AppSettingsUpdateRequest,
   type AppStateResponse,
   type BuildToolPreference,
+  type DesktopCloseAction,
   type HealthResponse,
+  type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
   type ProjectScanResult,
   type RecentProject,
@@ -49,7 +53,9 @@ const appSettings = ref<AppSettings>({
   locale: DEFAULT_LOCALE,
   defaultBuildToolPreference: DEFAULT_BUILD_TOOL_PREFERENCE,
   defaultSkipTests: DEFAULT_SKIP_TESTS,
-  lastProjectPath: null
+  lastProjectPath: null,
+  trayEnabled: DEFAULT_TRAY_ENABLED,
+  closeAction: DEFAULT_CLOSE_ACTION
 })
 const recentProjects = ref<RecentProject[]>([])
 const selectedLogServiceId = ref('')
@@ -128,6 +134,15 @@ watch(projectScan, (scanResult) => {
   }
 
   serviceLaunchConfigs.value = nextConfigs
+  selectedLogServiceId.value = scanResult.savedLastSelectedServiceId ?? ''
+})
+
+watch(selectedLogServiceId, (serviceId) => {
+  if (!selectedProjectPath.value) {
+    return
+  }
+
+  void saveProjectPreference(serviceId || null)
 })
 
 async function initializeApp() {
@@ -170,6 +185,7 @@ async function loadAppState() {
   appSettings.value = appState.settings
   recentProjects.value = appState.recentProjects
   locale.value = appState.settings.locale
+  await applyDesktopSettings()
 }
 
 function setLocale(nextLocale: Locale) {
@@ -189,7 +205,9 @@ async function saveSettings() {
       locale: appSettings.value.locale,
       defaultBuildToolPreference: appSettings.value.defaultBuildToolPreference,
       defaultSkipTests: appSettings.value.defaultSkipTests,
-      lastProjectPath: selectedProjectPath.value || appSettings.value.lastProjectPath
+      lastProjectPath: selectedProjectPath.value || appSettings.value.lastProjectPath,
+      trayEnabled: appSettings.value.trayEnabled,
+      closeAction: appSettings.value.closeAction
     }
 
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/settings`, {
@@ -207,10 +225,43 @@ async function saveSettings() {
 
     appSettings.value = (await response.json()) as AppSettings
     locale.value = appSettings.value.locale
+    await applyDesktopSettings()
     settingsMessage.value = text.value.settingsSaved
     await loadAppState()
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown settings error'
+  }
+}
+
+async function applyDesktopSettings() {
+  await window.microlight.applyDesktopSettings({
+    trayEnabled: appSettings.value.trayEnabled,
+    closeAction: appSettings.value.closeAction
+  })
+}
+
+async function saveProjectPreference(lastSelectedServiceId: string | null) {
+  const projectPath = selectedProjectPath.value.trim()
+
+  if (!projectPath) {
+    return
+  }
+
+  const payload: ProjectPreferenceUpdateRequest = {
+    rootPath: projectPath,
+    lastSelectedServiceId
+  }
+
+  try {
+    await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/projects/preferences`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+  } catch {
+    // Ignore project preference persistence failures in the initial implementation.
   }
 }
 
@@ -355,6 +406,14 @@ function normalizeProfiles(value: string) {
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
     .join(',')
+}
+
+function getCloseActionLabel(closeAction: DesktopCloseAction, trayEnabled: boolean) {
+  if (!trayEnabled) {
+    return text.value.settingsCloseActionQuit
+  }
+
+  return closeAction === 'hide' ? text.value.settingsCloseActionHide : text.value.settingsCloseActionQuit
 }
 
 function getServiceStatusLabel(status: ServiceInstanceState['status']) {
@@ -562,6 +621,11 @@ const buildToolOptions = computed(() => [
   { value: 'mvn', label: text.value.settingsMaven },
   { value: 'mvnd', label: text.value.settingsMvnd }
 ])
+
+const closeActionOptions = computed(() => [
+  { value: 'hide' satisfies DesktopCloseAction, label: text.value.settingsCloseActionHide },
+  { value: 'quit' satisfies DesktopCloseAction, label: text.value.settingsCloseActionQuit }
+])
 </script>
 
 <template>
@@ -626,38 +690,81 @@ const buildToolOptions = computed(() => [
 
       <article class="panel">
         <h2>{{ text.settingsTitle }}</h2>
-        <div class="settings-grid">
-          <label class="settings-field">
-            <span>{{ text.settingsLocale }}</span>
-            <select
-              v-model="appSettings.locale"
-              @change="setLocale(appSettings.locale)"
-            >
-              <option value="zh-CN">{{ text.switchToChinese }}</option>
-              <option value="en-US">{{ text.switchToEnglish }}</option>
-            </select>
-          </label>
+        <div class="settings-stack">
+          <section class="settings-section">
+            <div class="settings-section__header">
+              <h3>{{ text.settingsGeneralTitle }}</h3>
+              <p>{{ text.settingsGeneralDescription }}</p>
+            </div>
 
-          <label class="settings-field">
-            <span>{{ text.settingsDefaultBuildTool }}</span>
-            <select v-model="appSettings.defaultBuildToolPreference">
-              <option
-                v-for="option in buildToolOptions"
-                :key="option.value"
-                :value="option.value"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
+            <div class="settings-grid">
+              <label class="settings-field">
+                <span>{{ text.settingsLocale }}</span>
+                <select
+                  v-model="appSettings.locale"
+                  @change="setLocale(appSettings.locale)"
+                >
+                  <option value="zh-CN">{{ text.switchToChinese }}</option>
+                  <option value="en-US">{{ text.switchToEnglish }}</option>
+                </select>
+              </label>
 
-          <label class="settings-toggle">
-            <input
-              v-model="appSettings.defaultSkipTests"
-              type="checkbox"
-            />
-            <span>{{ text.settingsSkipTests }}</span>
-          </label>
+              <label class="settings-field">
+                <span>{{ text.settingsDefaultBuildTool }}</span>
+                <select v-model="appSettings.defaultBuildToolPreference">
+                  <option
+                    v-for="option in buildToolOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+
+              <label class="settings-toggle">
+                <input
+                  v-model="appSettings.defaultSkipTests"
+                  type="checkbox"
+                />
+                <span>{{ text.settingsSkipTests }}</span>
+              </label>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="settings-section__header">
+              <h3>{{ text.settingsDesktopTitle }}</h3>
+              <p>{{ text.settingsDesktopDescription }}</p>
+            </div>
+
+            <div class="settings-grid">
+              <label class="settings-toggle">
+                <input
+                  v-model="appSettings.trayEnabled"
+                  type="checkbox"
+                />
+                <span>{{ text.settingsTrayEnabled }}</span>
+              </label>
+
+              <label class="settings-field">
+                <span>{{ text.settingsCloseAction }}</span>
+                <select v-model="appSettings.closeAction">
+                  <option
+                    v-for="option in closeActionOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <p class="muted">
+              {{ text.settingsCloseActionSummary }} {{ getCloseActionLabel(appSettings.closeAction, appSettings.trayEnabled) }}
+            </p>
+          </section>
 
           <button
             class="refresh-button"

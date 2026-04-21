@@ -61,7 +61,9 @@ export async function scanProject(rootPath: string): Promise<ProjectScanResult> 
     artifactId: rootProject.artifactId ?? path.basename(normalizedRootPath),
     packaging: rootProject.packaging ?? 'jar',
     moduleCount: modules.length,
-    modules
+    modules,
+    savedLastSelectedServiceId:
+      persistenceService.getProjectPreference(normalizedRootPath)?.lastSelectedServiceId ?? null
   }
 }
 

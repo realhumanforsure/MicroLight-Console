@@ -10,6 +10,7 @@ import {
   DEFAULT_SERVER_HOST,
   DEFAULT_SERVER_PORT,
   type HealthResponse,
+  type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
   type RuntimeDetectionRequest,
   type ServiceInstancesResponse,
@@ -82,6 +83,21 @@ export async function createServer() {
       }
     }
   })
+
+  app.put<{ Body: ProjectPreferenceUpdateRequest }>(
+    '/api/projects/preferences',
+    async (request, reply) => {
+      try {
+        return persistenceService.saveProjectPreference(request.body)
+      } catch (error) {
+        request.log.error(error)
+        reply.code(400)
+        return {
+          message: error instanceof Error ? error.message : 'Failed to update project preferences'
+        }
+      }
+    }
+  )
 
   app.post<{ Body: RuntimeDetectionRequest }>('/api/runtime/detect', async (request, reply) => {
     try {

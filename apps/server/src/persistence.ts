@@ -5,13 +5,18 @@ import path from 'node:path'
 import { mkdirSync } from 'node:fs'
 import {
   DEFAULT_BUILD_TOOL_PREFERENCE,
+  DEFAULT_CLOSE_ACTION,
   DEFAULT_JVM_ARGS,
   DEFAULT_PROGRAM_ARGS,
   DEFAULT_SKIP_TESTS,
   DEFAULT_SPRING_PROFILES,
+  DEFAULT_TRAY_ENABLED,
   type AppSettings,
   type AppSettingsUpdateRequest,
   type BuildToolPreference,
+  type DesktopCloseAction,
+  type ProjectPreference,
+  type ProjectPreferenceUpdateRequest,
   type RecentProject,
   type ServicePreference
 } from '@microlight/shared'
@@ -46,7 +51,13 @@ class PersistenceService {
         settingsMap.get('defaultSkipTests') === undefined
           ? DEFAULT_SKIP_TESTS
           : settingsMap.get('defaultSkipTests') === 'true',
-      lastProjectPath: settingsMap.get('lastProjectPath') ?? null
+      lastProjectPath: settingsMap.get('lastProjectPath') ?? null,
+      trayEnabled:
+        settingsMap.get('trayEnabled') === undefined
+          ? DEFAULT_TRAY_ENABLED
+          : settingsMap.get('trayEnabled') === 'true',
+      closeAction:
+        (settingsMap.get('closeAction') as DesktopCloseAction | undefined) ?? DEFAULT_CLOSE_ACTION
     }
   }
 
@@ -64,6 +75,8 @@ class PersistenceService {
       statement.run('defaultBuildToolPreference', payload.defaultBuildToolPreference)
       statement.run('defaultSkipTests', String(payload.defaultSkipTests))
       statement.run('lastProjectPath', payload.lastProjectPath ?? '')
+      statement.run('trayEnabled', String(payload.trayEnabled))
+      statement.run('closeAction', payload.closeAction)
     })
 
     transaction()
@@ -108,6 +121,54 @@ class PersistenceService {
         `
       )
       .all(limit) as RecentProject[]
+  }
+
+  saveProjectPreference(preference: ProjectPreferenceUpdateRequest) {
+    const updatedAt = new Date().toISOString()
+
+    this.db
+      .prepare(
+        `
+          INSERT INTO project_preferences (
+            root_path,
+            last_selected_service_id,
+            updated_at
+          )
+          VALUES (
+            @rootPath,
+            @lastSelectedServiceId,
+            @updatedAt
+          )
+          ON CONFLICT(root_path)
+          DO UPDATE SET
+            last_selected_service_id = excluded.last_selected_service_id,
+            updated_at = excluded.updated_at
+        `
+      )
+      .run({
+        rootPath: preference.rootPath,
+        lastSelectedServiceId: preference.lastSelectedServiceId,
+        updatedAt
+      })
+
+    return this.getProjectPreference(preference.rootPath)
+  }
+
+  getProjectPreference(rootPath: string): ProjectPreference | null {
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            root_path AS rootPath,
+            last_selected_service_id AS lastSelectedServiceId,
+            updated_at AS updatedAt
+          FROM project_preferences
+          WHERE root_path = ?
+        `
+      )
+      .get(rootPath) as ProjectPreference | undefined
+
+    return row ?? null
   }
 
   saveServicePreference(preference: Omit<ServicePreference, 'updatedAt'>) {
@@ -220,6 +281,12 @@ class PersistenceService {
         root_path TEXT PRIMARY KEY,
         display_name TEXT NOT NULL,
         last_opened_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS project_preferences (
+        root_path TEXT PRIMARY KEY,
+        last_selected_service_id TEXT,
+        updated_at TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS service_preferences (

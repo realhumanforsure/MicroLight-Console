@@ -14,9 +14,18 @@ interface LocaleMessages {
   runtimeBackendPid: string
   runtimePending: string
   settingsTitle: string
+  settingsGeneralTitle: string
+  settingsGeneralDescription: string
+  settingsDesktopTitle: string
+  settingsDesktopDescription: string
   settingsLocale: string
   settingsDefaultBuildTool: string
   settingsSkipTests: string
+  settingsTrayEnabled: string
+  settingsCloseAction: string
+  settingsCloseActionSummary: string
+  settingsCloseActionHide: string
+  settingsCloseActionQuit: string
   settingsRecentProjects: string
   settingsSave: string
   settingsSaved: string
@@ -110,9 +119,18 @@ export const messages: Record<Locale, LocaleMessages> = {
     runtimeBackendPid: '后端进程 PID',
     runtimePending: '等待中',
     settingsTitle: '设置',
+    settingsGeneralTitle: '通用设置',
+    settingsGeneralDescription: '配置默认语言、构建器和基础构建偏好。',
+    settingsDesktopTitle: '桌面行为',
+    settingsDesktopDescription: '配置托盘支持和点击关闭按钮时的窗口行为。',
     settingsLocale: '界面语言',
     settingsDefaultBuildTool: '默认构建器',
     settingsSkipTests: '默认跳过测试',
+    settingsTrayEnabled: '启用系统托盘',
+    settingsCloseAction: '关闭按钮行为',
+    settingsCloseActionSummary: '当前关闭窗口时将执行：',
+    settingsCloseActionHide: '隐藏到托盘',
+    settingsCloseActionQuit: '直接退出应用',
     settingsRecentProjects: '最近项目',
     settingsSave: '保存设置',
     settingsSaved: '设置已保存',
@@ -202,9 +220,18 @@ export const messages: Record<Locale, LocaleMessages> = {
     runtimeBackendPid: 'Backend PID',
     runtimePending: 'Pending',
     settingsTitle: 'Settings',
+    settingsGeneralTitle: 'General',
+    settingsGeneralDescription: 'Configure the default language, build tool, and basic build preferences.',
+    settingsDesktopTitle: 'Desktop Behavior',
+    settingsDesktopDescription: 'Configure tray support and how the app behaves when the close button is pressed.',
     settingsLocale: 'Interface Language',
     settingsDefaultBuildTool: 'Default Build Tool',
     settingsSkipTests: 'Skip Tests by Default',
+    settingsTrayEnabled: 'Enable System Tray',
+    settingsCloseAction: 'Close Button Behavior',
+    settingsCloseActionSummary: 'Closing the window will currently:',
+    settingsCloseActionHide: 'Hide to Tray',
+    settingsCloseActionQuit: 'Quit the App',
     settingsRecentProjects: 'Recent Projects',
     settingsSave: 'Save Settings',
     settingsSaved: 'Settings saved',

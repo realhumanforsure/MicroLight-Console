@@ -8,6 +8,8 @@ export const DEFAULT_SKIP_TESTS = true
 export const DEFAULT_JVM_ARGS = ''
 export const DEFAULT_PROGRAM_ARGS = ''
 export const DEFAULT_SPRING_PROFILES = ''
+export const DEFAULT_TRAY_ENABLED = true
+export const DEFAULT_CLOSE_ACTION: DesktopCloseAction = 'hide'
 
 export interface HealthResponse {
   ok: boolean
@@ -49,11 +51,13 @@ export interface ProjectScanResult {
   packaging: string
   moduleCount: number
   modules: ScannedModule[]
+  savedLastSelectedServiceId: string | null
 }
 
 export type BuildToolKind = 'mvnw' | 'mvn' | 'mvnd'
 export type BuildToolPreference = 'auto' | BuildToolKind
 export type ServiceStatus = 'idle' | 'building' | 'running' | 'stopped' | 'failed'
+export type DesktopCloseAction = 'quit' | 'hide'
 
 export interface ToolAvailability {
   kind: 'java' | BuildToolKind
@@ -131,6 +135,8 @@ export interface AppSettings {
   defaultBuildToolPreference: BuildToolPreference
   defaultSkipTests: boolean
   lastProjectPath: string | null
+  trayEnabled: boolean
+  closeAction: DesktopCloseAction
 }
 
 export interface RecentProject {
@@ -149,6 +155,19 @@ export interface AppSettingsUpdateRequest {
   defaultBuildToolPreference: BuildToolPreference
   defaultSkipTests: boolean
   lastProjectPath: string | null
+  trayEnabled: boolean
+  closeAction: DesktopCloseAction
+}
+
+export interface ProjectPreference {
+  rootPath: string
+  lastSelectedServiceId: string | null
+  updatedAt: string
+}
+
+export interface ProjectPreferenceUpdateRequest {
+  rootPath: string
+  lastSelectedServiceId: string | null
 }
 
 export interface ServicePreference {
