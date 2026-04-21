@@ -8,6 +8,7 @@ Thumbs.db
 apps/*/dist
 apps/*/out
 apps/desktop/.package-assets
+apps/desktop/.package-stage
 apps/desktop/release
 packages/*/dist
 docs

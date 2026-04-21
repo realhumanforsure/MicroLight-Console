@@ -74,10 +74,10 @@
   - 系统托盘与关闭窗口策略已完成
   - 项目级偏好持久化已完成，可恢复上次选中的服务
   - MVP 预检面板与后端预检接口已完成
+  - Windows 打包原生依赖隔离已完成，避免 Electron ABI 重建污染根工作区
 - 当前下一步：
   - 完善 MVP 验收清单与已知问题记录
   - 补充 Windows 安装与运行验证说明
-  - 处理 Windows 打包后 `better-sqlite3` 开发态原生模块恢复冲突
   - 准备首个可分发的发布版本
 
 ## 6. 阶段总览
@@ -258,10 +258,11 @@
   - Windows 安装包产物生成
   - `win-unpacked` 运行验证
   - MVP 预检接口与前端预检面板
+  - 打包 staging 目录已移出 monorepo，`better-sqlite3` 的 Electron ABI 重建仅发生在隔离目录
+  - 打包后开发态 Node 服务端可继续加载根工作区 `better-sqlite3` 并返回 `/api/health`
 - 尚未完成：
   - 更完整的 MVP 验收清单与记录
   - Windows 安装与运行说明
-  - 打包后开发态原生模块恢复冲突的彻底隔离
 
 ### Phase 7：增强能力
 
@@ -463,10 +464,11 @@
   - `electron-builder` 已生成 Windows 安装包
   - `win-unpacked` 可执行文件启动后，内置后端可正常提供 `/api/health`
   - 预检接口可返回数据库、Java、Maven、模块扫描和启动类识别结果
+  - Windows 打包 staging 目录已隔离到仓库外，`electron-builder` 不再将 monorepo 根目录识别为应用工作区
+  - 隔离打包后，开发态服务端可通过 Node 运行并返回 `200 true`
 - 尚未满足：
   - MVP 集成验收清单
   - Windows 安装与运行说明
-  - Windows 打包后开发态 `better-sqlite3` 原生模块恢复冲突
 
 ## 7.8 Phase 7：增强能力
 

@@ -10,17 +10,11 @@
     "dev": "cross-env MICROLIGHT_SERVER_DEV_ENTRY=../server/src/index.ts electron-vite dev",
     "build": "vue-tsc --noEmit && electron-vite build",
     "prepare:package": "node ./scripts/prepare-package.mjs",
-    "restore:dev-native": "npm rebuild better-sqlite3 -w @microlight/server",
     "package:win": "node ./scripts/package-win.mjs",
     "dist:win": "npm run build && npm run package:win"
   },
   "dependencies": {
-    "@fastify/cors": "^11.1.0",
     "@microlight/shared": "0.1.0",
-    "better-sqlite3": "^11.8.1",
-    "fast-xml-parser": "^5.2.5",
-    "fastify": "^5.3.3",
-    "pidusage": "^4.0.1",
     "vue": "^3.5.17"
   },
   "devDependencies": {
@@ -33,41 +27,5 @@
     "typescript": "^5.8.3",
     "vite": "^5.4.19",
     "vue-tsc": "^2.2.10"
-  },
-  "build": {
-    "appId": "com.realhumanforsure.microlightconsole",
-    "productName": "MicroLight Console",
-    "electronVersion": "35.1.4",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "out/**/*",
-      ".package-assets/server/dist/**/*",
-      "package.json"
-    ],
-    "asar": true,
-    "asarUnpack": [
-      "node_modules/**/*.node"
-    ],
-    "npmRebuild": true,
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "artifactName": "${productName}-${version}-${arch}.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "MicroLight Console"
-    }
   }
 }

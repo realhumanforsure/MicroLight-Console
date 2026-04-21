@@ -1,38 +1,26 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { setTimeout as delay } from 'node:timers/promises'
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const desktopRoot = path.resolve(__dirname, '..')
+const workspaceRoot = path.resolve(desktopRoot, '..', '..')
+const builderCliPath = path.join(workspaceRoot, 'node_modules', 'electron-builder', 'cli.js')
+const stageRoot = resolveStageRoot()
 
-let packagingFailed = false
+runCommand(npmCommand, ['run', 'prepare:package'], desktopRoot)
+runCommand(npmCommand, ['install', '--omit=dev'], stageRoot)
+runCommand(process.execPath, [builderCliPath, '--projectDir', stageRoot, '--win', 'nsis'], desktopRoot, {
+  shell: false
+})
 
-try {
-  runCommand(npmCommand, ['run', 'prepare:package'])
-  runCommand('npx', ['electron-builder', '--win', 'nsis'])
-} catch (error) {
-  packagingFailed = true
-  throw error
-} finally {
-  try {
-    await restoreNativeModule()
-  } catch (restoreError) {
-    if (!packagingFailed) {
-      throw restoreError
-    }
-
-    console.error(restoreError)
-  }
-}
-
-function runCommand(command, args) {
+function runCommand(command, args, cwd, options = {}) {
   const result = spawnSync(command, args, {
-    cwd: desktopRoot,
+    cwd,
     stdio: 'inherit',
-    shell: process.platform === 'win32'
+    shell: options.shell ?? process.platform === 'win32'
   })
 
   if (result.status !== 0) {
@@ -40,21 +28,13 @@ function runCommand(command, args) {
   }
 }
 
-async function restoreNativeModule() {
-  let lastError = null
+function resolveStageRoot() {
+  const stageDirectoryName = 'MicroLight-Console-PackageStage'
+  const stagePath = path.resolve(workspaceRoot, '..', stageDirectoryName)
 
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
-    try {
-      if (attempt > 1) {
-        await delay(3000)
-      }
-
-      runCommand(npmCommand, ['run', 'restore:dev-native'])
-      return
-    } catch (error) {
-      lastError = error
-    }
+  if (path.basename(stagePath) !== stageDirectoryName) {
+    throw new Error(`Unsafe package stage path: ${stagePath}`)
   }
 
-  throw lastError
+  return stagePath
 }
