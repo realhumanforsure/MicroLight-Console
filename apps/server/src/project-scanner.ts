@@ -1,11 +1,16 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { XMLParser } from 'fast-xml-parser'
-import type {
-  ProjectScanResult,
-  ScannedModule,
-  ServiceCandidate
+import {
+  DEFAULT_BUILD_TOOL_PREFERENCE,
+  DEFAULT_SKIP_TESTS,
+  type BuildToolPreference,
+  type ProjectScanResult,
+  type ScannedModule,
+  type ServiceCandidate
 } from '@microlight/shared'
+import { createServiceId } from './service-runtime.js'
+import { persistenceService } from './persistence.js'
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -68,15 +73,18 @@ async function scanModule(modulePath: string): Promise<ScannedModule> {
 
   const javaSourcePath = path.join(modulePath, 'src', 'main', 'java')
   const defaultPort = await resolveDefaultPort(modulePath)
+  const artifactId = project.artifactId ?? path.basename(modulePath)
   const javaFiles = await collectJavaFiles(javaSourcePath)
   const serviceCandidates = await Promise.all(
-    javaFiles.map((javaFilePath) => parseServiceCandidate(javaFilePath, modulePath, defaultPort))
+    javaFiles.map((javaFilePath) =>
+      parseServiceCandidate(javaFilePath, modulePath, artifactId, defaultPort)
+    )
   )
 
   return {
     moduleName: project.name ?? path.basename(modulePath),
     modulePath,
-    artifactId: project.artifactId ?? path.basename(modulePath),
+    artifactId,
     packaging: project.packaging ?? 'jar',
     bootVersion: project.parent?.version ?? project.version ?? null,
     serviceCandidates: serviceCandidates.filter(
@@ -122,6 +130,7 @@ async function collectJavaFiles(rootPath: string): Promise<string[]> {
 async function parseServiceCandidate(
   javaFilePath: string,
   modulePath: string,
+  artifactId: string,
   defaultPort: number | null
 ): Promise<ServiceCandidate | null> {
   const source = await fs.readFile(javaFilePath, 'utf8')
@@ -145,7 +154,8 @@ async function parseServiceCandidate(
     mainClass: packageName ? `${packageName}.${className}` : className,
     javaFilePath,
     modulePath,
-    defaultPort
+    defaultPort,
+    ...resolveSavedPreference(artifactId, className, packageName)
   }
 }
 
@@ -196,4 +206,16 @@ function normalizeArray(value: string | string[] | undefined): string[] {
   }
 
   return Array.isArray(value) ? value : [value]
+}
+
+function resolveSavedPreference(artifactId: string, className: string, packageName: string) {
+  const mainClass = packageName ? `${packageName}.${className}` : className
+  const serviceId = createServiceId(artifactId, mainClass)
+  const preference = persistenceService.getServicePreference(serviceId)
+
+  return {
+    savedBuildToolPreference:
+      preference?.buildToolPreference ?? (DEFAULT_BUILD_TOOL_PREFERENCE as BuildToolPreference),
+    savedSkipTests: preference?.skipTests ?? DEFAULT_SKIP_TESTS
+  }
 }

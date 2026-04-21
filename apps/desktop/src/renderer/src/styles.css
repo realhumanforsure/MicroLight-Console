@@ -123,6 +123,59 @@ h1 {
   box-shadow: 0 20px 40px rgba(3, 8, 18, 0.28);
 }
 
+.settings-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-field {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-field span,
+.settings-toggle span {
+  color: #9db1cf;
+}
+
+.settings-field select {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(189, 210, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(11, 19, 35, 0.92);
+  color: #edf4ff;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.recent-projects {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.recent-project-button {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  text-align: left;
+  border-radius: 16px;
+  border: 1px solid rgba(189, 210, 255, 0.12);
+  background: rgba(10, 19, 34, 0.85);
+  color: #e6f0ff;
+  cursor: pointer;
+}
+
+.recent-project-button span {
+  color: #90a4c3;
+  word-break: break-all;
+}
+
 .project-panel {
   padding: 24px;
   border-radius: 24px;

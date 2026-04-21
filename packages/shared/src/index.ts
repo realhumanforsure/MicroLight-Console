@@ -3,6 +3,8 @@ export const APP_VERSION = '0.1.0'
 export const DEFAULT_SERVER_HOST = '127.0.0.1'
 export const DEFAULT_SERVER_PORT = 3210
 export const DEFAULT_SERVER_URL = `http://${DEFAULT_SERVER_HOST}:${DEFAULT_SERVER_PORT}`
+export const DEFAULT_BUILD_TOOL_PREFERENCE: BuildToolPreference = 'auto'
+export const DEFAULT_SKIP_TESTS = true
 
 export interface HealthResponse {
   ok: boolean
@@ -22,6 +24,8 @@ export interface ServiceCandidate {
   javaFilePath: string
   modulePath: string
   defaultPort: number | null
+  savedBuildToolPreference: BuildToolPreference
+  savedSkipTests: boolean
 }
 
 export interface ScannedModule {
@@ -111,4 +115,40 @@ export interface ServiceInstancesResponse {
 export interface ServiceStreamEvent {
   type: 'snapshot'
   instance: ServiceInstanceState
+}
+
+export interface AppSettings {
+  locale: 'zh-CN' | 'en-US'
+  defaultBuildToolPreference: BuildToolPreference
+  defaultSkipTests: boolean
+  lastProjectPath: string | null
+}
+
+export interface RecentProject {
+  rootPath: string
+  displayName: string
+  lastOpenedAt: string
+}
+
+export interface AppStateResponse {
+  settings: AppSettings
+  recentProjects: RecentProject[]
+}
+
+export interface AppSettingsUpdateRequest {
+  locale: 'zh-CN' | 'en-US'
+  defaultBuildToolPreference: BuildToolPreference
+  defaultSkipTests: boolean
+  lastProjectPath: string | null
+}
+
+export interface ServicePreference {
+  serviceId: string
+  rootPath: string
+  modulePath: string
+  artifactId: string
+  mainClass: string
+  buildToolPreference: BuildToolPreference
+  skipTests: boolean
+  updatedAt: string
 }

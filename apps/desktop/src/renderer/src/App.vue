@@ -2,10 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import {
   APP_NAME,
+  DEFAULT_BUILD_TOOL_PREFERENCE,
   DEFAULT_SERVER_URL,
+  DEFAULT_SKIP_TESTS,
+  type AppSettings,
+  type AppSettingsUpdateRequest,
+  type AppStateResponse,
+  type BuildToolPreference,
   type HealthResponse,
   type ProjectScanRequest,
   type ProjectScanResult,
+  type RecentProject,
   type RuntimeDetectionRequest,
   type RuntimeDetectionResult,
   type ServiceInstanceState,
@@ -21,6 +28,13 @@ const projectScan = ref<ProjectScanResult | null>(null)
 const runtimeDetection = ref<RuntimeDetectionResult | null>(null)
 const serviceInstances = ref<Record<string, ServiceInstanceState>>({})
 const locale = ref<Locale>(DEFAULT_LOCALE)
+const appSettings = ref<AppSettings>({
+  locale: DEFAULT_LOCALE,
+  defaultBuildToolPreference: DEFAULT_BUILD_TOOL_PREFERENCE,
+  defaultSkipTests: DEFAULT_SKIP_TESTS,
+  lastProjectPath: null
+})
+const recentProjects = ref<RecentProject[]>([])
 const selectedLogServiceId = ref('')
 const loading = ref(true)
 const scanning = ref(false)
@@ -28,24 +42,71 @@ const detecting = ref(false)
 const errorMessage = ref('')
 const scanErrorMessage = ref('')
 const runtimeErrorMessage = ref('')
+const settingsMessage = ref('')
 const serviceActionState = ref<Record<string, boolean>>({})
 const text = computed(() => messages[locale.value])
-let refreshTimer: number | null = null
 const logStreams = new Map<string, EventSource>()
+let refreshTimer: number | null = null
 
-async function loadHealth() {
+onMounted(() => {
+  void initializeApp()
+  refreshTimer = window.setInterval(() => {
+    void refreshInstances()
+  }, 3000)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer !== null) {
+    window.clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+
+  for (const stream of logStreams.values()) {
+    stream.close()
+  }
+
+  logStreams.clear()
+})
+
+watchEffect(() => {
+  document.title = text.value.appTitle
+})
+
+watch(
+  serviceInstances,
+  (instances) => {
+    const activeIds = new Set(
+      Object.values(instances)
+        .filter((instance) => instance.status === 'building' || instance.status === 'running')
+        .map((instance) => instance.serviceId)
+    )
+
+    for (const serviceId of activeIds) {
+      ensureLogStream(serviceId)
+    }
+
+    for (const [serviceId, stream] of logStreams.entries()) {
+      if (!activeIds.has(serviceId)) {
+        stream.close()
+        logStreams.delete(serviceId)
+      }
+    }
+  },
+  { deep: true }
+)
+
+async function initializeApp() {
   loading.value = true
   errorMessage.value = ''
 
   try {
     runtimeInfo.value = await window.microlight.getRuntimeInfo()
-    const response = await fetch(`${runtimeInfo.value.serverUrl}/api/health`)
+    await Promise.all([loadHealth(), loadAppState()])
 
-    if (!response.ok) {
-      throw new Error(`Health request failed with ${response.status}`)
+    if (appSettings.value.lastProjectPath) {
+      selectedProjectPath.value = appSettings.value.lastProjectPath
+      await scanProject()
     }
-
-    health.value = (await response.json()) as HealthResponse
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Unknown error'
   } finally {
@@ -53,16 +114,69 @@ async function loadHealth() {
   }
 }
 
-onMounted(() => {
-  void loadHealth()
-})
+async function loadHealth() {
+  const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/health`)
 
-watchEffect(() => {
-  document.title = text.value.appTitle
-})
+  if (!response.ok) {
+    throw new Error(`Health request failed with ${response.status}`)
+  }
+
+  health.value = (await response.json()) as HealthResponse
+}
+
+async function loadAppState() {
+  const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/app-state`)
+
+  if (!response.ok) {
+    throw new Error(`App state request failed with ${response.status}`)
+  }
+
+  const appState = (await response.json()) as AppStateResponse
+  appSettings.value = appState.settings
+  recentProjects.value = appState.recentProjects
+  locale.value = appState.settings.locale
+}
 
 function setLocale(nextLocale: Locale) {
   locale.value = nextLocale
+  appSettings.value = {
+    ...appSettings.value,
+    locale: nextLocale
+  }
+}
+
+async function saveSettings() {
+  settingsMessage.value = ''
+  runtimeErrorMessage.value = ''
+
+  try {
+    const payload: AppSettingsUpdateRequest = {
+      locale: appSettings.value.locale,
+      defaultBuildToolPreference: appSettings.value.defaultBuildToolPreference,
+      defaultSkipTests: appSettings.value.defaultSkipTests,
+      lastProjectPath: selectedProjectPath.value || appSettings.value.lastProjectPath
+    }
+
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/settings`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      const body = (await response.json()) as { message?: string }
+      throw new Error(body.message ?? `Settings save failed: ${response.status}`)
+    }
+
+    appSettings.value = (await response.json()) as AppSettings
+    locale.value = appSettings.value.locale
+    settingsMessage.value = text.value.settingsSaved
+    await loadAppState()
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown settings error'
+  }
 }
 
 async function selectProjectDirectory() {
@@ -71,6 +185,11 @@ async function selectProjectDirectory() {
   if (selectedPath) {
     selectedProjectPath.value = selectedPath
   }
+}
+
+async function restoreRecentProject(rootPath: string) {
+  selectedProjectPath.value = rootPath
+  await scanProject()
 }
 
 async function scanProject() {
@@ -103,6 +222,8 @@ async function scanProject() {
     projectScan.value = (await response.json()) as ProjectScanResult
     runtimeDetection.value = null
     runtimeErrorMessage.value = ''
+    settingsMessage.value = ''
+    await loadAppState()
   } catch (error) {
     scanErrorMessage.value = error instanceof Error ? error.message : 'Unknown scan error'
     projectScan.value = null
@@ -170,22 +291,14 @@ function formatCpu(cpuPercent: number | null) {
 }
 
 function formatMemory(memoryRssBytes: number | null) {
-  if (memoryRssBytes === null) {
-    return text.value.runtimePending
-  }
-
-  return `${(memoryRssBytes / 1024 / 1024).toFixed(1)} MB`
+  return memoryRssBytes === null ? text.value.runtimePending : `${(memoryRssBytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 function formatPort(port: number | null) {
   return port === null ? text.value.runtimePending : String(port)
 }
 
-async function launchService(
-  modulePath: string,
-  artifactId: string,
-  mainClass: string
-) {
+async function launchService(modulePath: string, artifactId: string, mainClass: string) {
   const serviceId = getServiceId(artifactId, mainClass)
   serviceActionState.value[serviceId] = true
 
@@ -196,8 +309,8 @@ async function launchService(
       artifactId,
       mainClass,
       runtimePort: candidatePort(modulePath, artifactId, mainClass),
-      buildToolPreference: 'auto',
-      skipTests: true
+      buildToolPreference: candidateBuildToolPreference(modulePath, artifactId, mainClass),
+      skipTests: candidateSkipTests(modulePath, artifactId, mainClass)
     }
 
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/launch`, {
@@ -305,48 +418,6 @@ async function refreshInstances() {
   }
 }
 
-onMounted(() => {
-  refreshTimer = window.setInterval(() => {
-    void refreshInstances()
-  }, 3000)
-})
-
-watch(
-  serviceInstances,
-  (instances) => {
-    const activeIds = new Set(
-      Object.values(instances)
-        .filter((instance) => instance.status === 'building' || instance.status === 'running')
-        .map((instance) => instance.serviceId)
-    )
-
-    for (const serviceId of activeIds) {
-      ensureLogStream(serviceId)
-    }
-
-    for (const [serviceId, stream] of logStreams.entries()) {
-      if (!activeIds.has(serviceId)) {
-        stream.close()
-        logStreams.delete(serviceId)
-      }
-    }
-  },
-  { deep: true }
-)
-
-onBeforeUnmount(() => {
-  if (refreshTimer !== null) {
-    window.clearInterval(refreshTimer)
-    refreshTimer = null
-  }
-
-  for (const stream of logStreams.values()) {
-    stream.close()
-  }
-
-  logStreams.clear()
-})
-
 function ensureLogStream(serviceId: string) {
   if (logStreams.has(serviceId)) {
     return
@@ -380,10 +451,31 @@ function ensureLogStream(serviceId: string) {
   logStreams.set(serviceId, source)
 }
 
+function findCandidate(modulePath: string, artifactId: string, mainClass: string) {
+  const module = projectScan.value?.modules.find(
+    (item) => item.modulePath === modulePath && item.artifactId === artifactId
+  )
+
+  return module?.serviceCandidates.find((item) => item.mainClass === mainClass) ?? null
+}
+
 function candidatePort(modulePath: string, artifactId: string, mainClass: string) {
-  const module = projectScan.value?.modules.find((item) => item.modulePath === modulePath && item.artifactId === artifactId)
-  const candidate = module?.serviceCandidates.find((item) => item.mainClass === mainClass)
-  return candidate?.defaultPort ?? 8080
+  return findCandidate(modulePath, artifactId, mainClass)?.defaultPort ?? 8080
+}
+
+function candidateBuildToolPreference(
+  modulePath: string,
+  artifactId: string,
+  mainClass: string
+): BuildToolPreference {
+  return (
+    findCandidate(modulePath, artifactId, mainClass)?.savedBuildToolPreference ??
+    appSettings.value.defaultBuildToolPreference
+  )
+}
+
+function candidateSkipTests(modulePath: string, artifactId: string, mainClass: string) {
+  return findCandidate(modulePath, artifactId, mainClass)?.savedSkipTests ?? appSettings.value.defaultSkipTests
 }
 
 const activeLogInstance = computed(() => {
@@ -399,6 +491,13 @@ const logWorkspaceServices = computed(() =>
     left.artifactId.localeCompare(right.artifactId, 'zh-CN')
   )
 )
+
+const buildToolOptions = computed(() => [
+  { value: 'auto', label: text.value.settingsAuto },
+  { value: 'mvnw', label: text.value.settingsMavenWrapper },
+  { value: 'mvn', label: text.value.settingsMaven },
+  { value: 'mvnd', label: text.value.settingsMvnd }
+])
 </script>
 
 <template>
@@ -435,7 +534,7 @@ const logWorkspaceServices = computed(() =>
         <button
           class="refresh-button"
           type="button"
-          @click="loadHealth"
+          @click="initializeApp"
         >
           {{ text.refreshHealth }}
         </button>
@@ -461,6 +560,82 @@ const logWorkspaceServices = computed(() =>
         </dl>
       </article>
 
+      <article class="panel">
+        <h2>{{ text.settingsTitle }}</h2>
+        <div class="settings-grid">
+          <label class="settings-field">
+            <span>{{ text.settingsLocale }}</span>
+            <select
+              v-model="appSettings.locale"
+              @change="setLocale(appSettings.locale)"
+            >
+              <option value="zh-CN">{{ text.switchToChinese }}</option>
+              <option value="en-US">{{ text.switchToEnglish }}</option>
+            </select>
+          </label>
+
+          <label class="settings-field">
+            <span>{{ text.settingsDefaultBuildTool }}</span>
+            <select v-model="appSettings.defaultBuildToolPreference">
+              <option
+                v-for="option in buildToolOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
+
+          <label class="settings-toggle">
+            <input
+              v-model="appSettings.defaultSkipTests"
+              type="checkbox"
+            />
+            <span>{{ text.settingsSkipTests }}</span>
+          </label>
+
+          <button
+            class="refresh-button"
+            type="button"
+            @click="saveSettings"
+          >
+            {{ text.settingsSave }}
+          </button>
+        </div>
+
+        <p
+          v-if="settingsMessage"
+          class="muted"
+        >
+          {{ settingsMessage }}
+        </p>
+
+        <div class="recent-projects">
+          <div class="project-panel__subheader">
+            <h3>{{ text.settingsRecentProjects }}</h3>
+          </div>
+
+          <template v-if="recentProjects.length === 0">
+            <p class="muted">{{ text.settingsNoRecentProjects }}</p>
+          </template>
+          <template v-else>
+            <button
+              v-for="project in recentProjects"
+              :key="project.rootPath"
+              class="recent-project-button"
+              type="button"
+              @click="restoreRecentProject(project.rootPath)"
+            >
+              <strong>{{ project.displayName }}</strong>
+              <span>{{ project.rootPath }}</span>
+            </button>
+          </template>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel-grid">
       <article class="panel">
         <h2>{{ text.healthTitle }}</h2>
         <template v-if="loading">

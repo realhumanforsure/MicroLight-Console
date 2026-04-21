@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url'
 import {
   APP_NAME,
   APP_VERSION,
+  type AppSettingsUpdateRequest,
+  type AppStateResponse,
   DEFAULT_SERVER_HOST,
   DEFAULT_SERVER_PORT,
   type HealthResponse,
@@ -15,6 +17,7 @@ import {
   type ServiceRestartRequest,
   type ServiceStopRequest
 } from '@microlight/shared'
+import { persistenceService } from './persistence.js'
 import { scanProject } from './project-scanner.js'
 import { detectRuntimeTools } from './runtime-tools.js'
 import { serviceRuntimeManager } from './service-runtime.js'
@@ -48,8 +51,28 @@ export async function createServer() {
     }
   })
 
+  app.get('/api/app-state', async (): Promise<AppStateResponse> => {
+    return {
+      settings: persistenceService.getAppSettings(),
+      recentProjects: persistenceService.getRecentProjects()
+    }
+  })
+
+  app.put<{ Body: AppSettingsUpdateRequest }>('/api/settings', async (request, reply) => {
+    try {
+      return persistenceService.updateAppSettings(request.body)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to update settings'
+      }
+    }
+  })
+
   app.post<{ Body: ProjectScanRequest }>('/api/projects/scan', async (request, reply) => {
     try {
+      persistenceService.recordRecentProject(request.body.rootPath)
       return await scanProject(request.body.rootPath)
     } catch (error) {
       request.log.error(error)
@@ -80,6 +103,15 @@ export async function createServer() {
 
   app.post<{ Body: ServiceLaunchRequest }>('/api/services/launch', async (request, reply) => {
     try {
+      persistenceService.saveServicePreference({
+        serviceId: `${request.body.artifactId}:${request.body.mainClass}`,
+        rootPath: request.body.rootPath,
+        modulePath: request.body.modulePath,
+        artifactId: request.body.artifactId,
+        mainClass: request.body.mainClass,
+        buildToolPreference: request.body.buildToolPreference,
+        skipTests: request.body.skipTests
+      })
       return await serviceRuntimeManager.launchService(request.body)
     } catch (error) {
       request.log.error(error)

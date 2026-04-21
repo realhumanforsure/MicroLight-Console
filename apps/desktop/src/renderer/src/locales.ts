@@ -13,6 +13,19 @@ interface LocaleMessages {
   runtimeBackendUrl: string
   runtimeBackendPid: string
   runtimePending: string
+  settingsTitle: string
+  settingsLocale: string
+  settingsDefaultBuildTool: string
+  settingsSkipTests: string
+  settingsRecentProjects: string
+  settingsSave: string
+  settingsSaved: string
+  settingsRestoreLastProject: string
+  settingsAuto: string
+  settingsMavenWrapper: string
+  settingsMaven: string
+  settingsMvnd: string
+  settingsNoRecentProjects: string
   healthTitle: string
   healthChecking: string
   healthHealthy: string
@@ -87,6 +100,19 @@ export const messages: Record<Locale, LocaleMessages> = {
     runtimeBackendUrl: '后端地址',
     runtimeBackendPid: '后端进程 PID',
     runtimePending: '等待中',
+    settingsTitle: '设置',
+    settingsLocale: '界面语言',
+    settingsDefaultBuildTool: '默认构建器',
+    settingsSkipTests: '默认跳过测试',
+    settingsRecentProjects: '最近项目',
+    settingsSave: '保存设置',
+    settingsSaved: '设置已保存',
+    settingsRestoreLastProject: '恢复上次项目',
+    settingsAuto: '自动',
+    settingsMavenWrapper: 'Maven Wrapper',
+    settingsMaven: 'System Maven',
+    settingsMvnd: 'mvnd',
+    settingsNoRecentProjects: '还没有最近项目记录。',
     healthTitle: '健康检查',
     healthChecking: '正在检查后端健康状态...',
     healthHealthy: '健康',
@@ -157,6 +183,19 @@ export const messages: Record<Locale, LocaleMessages> = {
     runtimeBackendUrl: 'Backend URL',
     runtimeBackendPid: 'Backend PID',
     runtimePending: 'Pending',
+    settingsTitle: 'Settings',
+    settingsLocale: 'Interface Language',
+    settingsDefaultBuildTool: 'Default Build Tool',
+    settingsSkipTests: 'Skip Tests by Default',
+    settingsRecentProjects: 'Recent Projects',
+    settingsSave: 'Save Settings',
+    settingsSaved: 'Settings saved',
+    settingsRestoreLastProject: 'Restore Last Project',
+    settingsAuto: 'Auto',
+    settingsMavenWrapper: 'Maven Wrapper',
+    settingsMaven: 'System Maven',
+    settingsMvnd: 'mvnd',
+    settingsNoRecentProjects: 'No recent projects yet.',
     healthTitle: 'Health Check',
     healthChecking: 'Checking backend health...',
     healthHealthy: 'Healthy',
