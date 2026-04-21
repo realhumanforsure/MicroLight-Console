@@ -40,6 +40,7 @@ interface LocaleMessages {
   environmentMaven: string
   environmentMvnd: string
   serviceLaunch: string
+  serviceRestart: string
   serviceStop: string
   serviceStatus: string
   servicePid: string
@@ -103,6 +104,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     environmentMaven: 'System Maven',
     environmentMvnd: 'mvnd',
     serviceLaunch: '构建并启动',
+    serviceRestart: '重启服务',
     serviceStop: '停止服务',
     serviceStatus: '状态',
     servicePid: 'PID',
@@ -162,6 +164,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     environmentMaven: 'System Maven',
     environmentMvnd: 'mvnd',
     serviceLaunch: 'Build and Start',
+    serviceRestart: 'Restart Service',
     serviceStop: 'Stop Service',
     serviceStatus: 'Status',
     servicePid: 'PID',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import {
   APP_NAME,
   DEFAULT_SERVER_URL,
@@ -9,7 +9,8 @@ import {
   type RuntimeDetectionRequest,
   type RuntimeDetectionResult,
   type ServiceInstanceState,
-  type ServiceLaunchRequest
+  type ServiceLaunchRequest,
+  type ServiceStreamEvent
 } from '@microlight/shared'
 import { DEFAULT_LOCALE, messages, type Locale } from './locales'
 
@@ -29,6 +30,7 @@ const runtimeErrorMessage = ref('')
 const serviceActionState = ref<Record<string, boolean>>({})
 const text = computed(() => messages[locale.value])
 let refreshTimer: number | null = null
+const logStreams = new Map<string, EventSource>()
 
 async function loadHealth() {
   loading.value = true
@@ -236,6 +238,36 @@ async function stopService(serviceId: string) {
   }
 }
 
+async function restartService(serviceId: string) {
+  serviceActionState.value[serviceId] = true
+
+  try {
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/restart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ serviceId })
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Restart failed: ${response.status}`)
+    }
+
+    const instance = (await response.json()) as ServiceInstanceState
+    serviceInstances.value = {
+      ...serviceInstances.value,
+      [instance.serviceId]: instance
+    }
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown restart error'
+  } finally {
+    serviceActionState.value[serviceId] = false
+    await refreshInstances()
+  }
+}
+
 async function refreshInstances() {
   try {
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/instances`)
@@ -259,12 +291,70 @@ onMounted(() => {
   }, 3000)
 })
 
+watch(
+  serviceInstances,
+  (instances) => {
+    const activeIds = new Set(
+      Object.values(instances)
+        .filter((instance) => instance.status === 'building' || instance.status === 'running')
+        .map((instance) => instance.serviceId)
+    )
+
+    for (const serviceId of activeIds) {
+      ensureLogStream(serviceId)
+    }
+
+    for (const [serviceId, stream] of logStreams.entries()) {
+      if (!activeIds.has(serviceId)) {
+        stream.close()
+        logStreams.delete(serviceId)
+      }
+    }
+  },
+  { deep: true }
+)
+
 onBeforeUnmount(() => {
   if (refreshTimer !== null) {
     window.clearInterval(refreshTimer)
     refreshTimer = null
   }
+
+  for (const stream of logStreams.values()) {
+    stream.close()
+  }
+
+  logStreams.clear()
 })
+
+function ensureLogStream(serviceId: string) {
+  if (logStreams.has(serviceId)) {
+    return
+  }
+
+  const source = new EventSource(
+    `${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/${encodeURIComponent(serviceId)}/logs/stream`
+  )
+
+  source.onmessage = (event) => {
+    try {
+      const payload = JSON.parse(event.data) as ServiceStreamEvent
+      serviceInstances.value = {
+        ...serviceInstances.value,
+        [payload.instance.serviceId]: payload.instance
+      }
+    } catch {
+      // Ignore malformed stream payloads in the initial implementation.
+    }
+  }
+
+  source.onerror = () => {
+    source.close()
+    logStreams.delete(serviceId)
+  }
+
+  logStreams.set(serviceId, source)
+}
 </script>
 
 <template>
@@ -493,6 +583,14 @@ onBeforeUnmount(() => {
                           ? text.servicePreparing
                           : text.serviceLaunch
                       }}
+                    </button>
+                    <button
+                      class="secondary-button"
+                      type="button"
+                      :disabled="serviceActionState[getServiceId(module.artifactId, candidate.mainClass)]"
+                      @click="restartService(getServiceId(module.artifactId, candidate.mainClass))"
+                    >
+                      {{ text.serviceRestart }}
                     </button>
                     <button
                       class="secondary-button"

@@ -150,6 +150,15 @@ function extractVersionLine(output: string): string | null {
 }
 
 export function execCommand(command: string, args: string[], cwd: string) {
+  return runStreamingCommand(command, args, cwd)
+}
+
+export function runStreamingCommand(
+  command: string,
+  args: string[],
+  cwd: string,
+  onOutput?: (chunk: string, source: 'stdout' | 'stderr') => void
+) {
   return new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
@@ -161,11 +170,15 @@ export function execCommand(command: string, args: string[], cwd: string) {
     let stderr = ''
 
     child.stdout.on('data', (chunk) => {
-      stdout += chunk.toString()
+      const text = chunk.toString()
+      stdout += text
+      onOutput?.(text, 'stdout')
     })
 
     child.stderr.on('data', (chunk) => {
-      stderr += chunk.toString()
+      const text = chunk.toString()
+      stderr += text
+      onOutput?.(text, 'stderr')
     })
 
     child.on('error', reject)

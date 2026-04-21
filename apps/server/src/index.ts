@@ -12,6 +12,7 @@ import {
   type RuntimeDetectionRequest,
   type ServiceInstancesResponse,
   type ServiceLaunchRequest,
+  type ServiceRestartRequest,
   type ServiceStopRequest
 } from '@microlight/shared'
 import { scanProject } from './project-scanner.js'
@@ -99,6 +100,52 @@ export async function createServer() {
         message: error instanceof Error ? error.message : 'Failed to stop service'
       }
     }
+  })
+
+  app.post<{ Body: ServiceRestartRequest }>('/api/services/restart', async (request, reply) => {
+    try {
+      return await serviceRuntimeManager.restartService(request.body.serviceId)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to restart service'
+      }
+    }
+  })
+
+  app.get<{ Params: { serviceId: string } }>('/api/services/:serviceId/logs/stream', async (request, reply) => {
+    reply.hijack()
+
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive'
+    })
+
+    const sendSnapshot = (state: ReturnType<typeof serviceRuntimeManager.getInstance> extends infer T
+      ? T extends null
+        ? never
+        : T
+      : never) => {
+      reply.raw.write(`data: ${JSON.stringify({ type: 'snapshot', instance: state })}\n\n`)
+    }
+
+    const currentState = serviceRuntimeManager.getInstance(request.params.serviceId)
+
+    if (currentState) {
+      sendSnapshot(currentState)
+    }
+
+    const unsubscribe = serviceRuntimeManager.subscribe(request.params.serviceId, sendSnapshot)
+    const heartbeat = setInterval(() => {
+      reply.raw.write(':keepalive\n\n')
+    }, 15000)
+
+    reply.raw.on('close', () => {
+      clearInterval(heartbeat)
+      unsubscribe()
+    })
   })
 
   return app

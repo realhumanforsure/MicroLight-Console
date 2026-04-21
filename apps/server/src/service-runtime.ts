@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
@@ -7,20 +8,36 @@ import type {
   ServiceLaunchRequest,
   ServiceStatus
 } from '@microlight/shared'
-import { execCommand, resolveBuildCommand } from './runtime-tools.js'
+import { resolveBuildCommand, runStreamingCommand } from './runtime-tools.js'
 
 const MAX_LOG_LINES = 200
 
 interface ManagedServiceInstance {
   state: ServiceInstanceState
   process: ChildProcessWithoutNullStreams | null
+  lastLaunchRequest: ServiceLaunchRequest | null
+  stopRequested: boolean
 }
 
 class ServiceRuntimeManager {
   private readonly instances = new Map<string, ManagedServiceInstance>()
+  private readonly events = new EventEmitter()
 
   getInstances() {
     return Array.from(this.instances.values()).map((instance) => instance.state)
+  }
+
+  getInstance(serviceId: string) {
+    return this.instances.get(serviceId)?.state ?? null
+  }
+
+  subscribe(serviceId: string, listener: (state: ServiceInstanceState) => void) {
+    const eventName = this.getEventName(serviceId)
+    this.events.on(eventName, listener)
+
+    return () => {
+      this.events.off(eventName, listener)
+    }
   }
 
   async launchService(request: ServiceLaunchRequest) {
@@ -34,31 +51,43 @@ class ServiceRuntimeManager {
     const state = existing?.state ?? createInitialState(serviceId, request)
     this.instances.set(serviceId, {
       state,
-      process: null
+      process: null,
+      lastLaunchRequest: request,
+      stopRequested: false
     })
 
     state.status = 'building'
     state.lastUpdatedAt = new Date().toISOString()
-    appendLog(state, `[build] Starting build for ${request.artifactId}`)
+    this.emitState(state)
+    this.appendLog(state, `[build] Starting build for ${request.artifactId}`)
 
     const buildCommand = await resolveBuildCommand(request.rootPath, request.buildToolPreference)
     state.buildTool = buildCommand.kind
+    this.emitState(state)
 
     const buildArgs = createBuildArgs(request, buildCommand.kind)
-    const buildResult = await execCommand(buildCommand.command, buildArgs, request.rootPath)
-    appendProcessOutput(state, '[build]', buildResult.stdout, buildResult.stderr)
+    const buildResult = await runStreamingCommand(
+      buildCommand.command,
+      buildArgs,
+      request.rootPath,
+      (chunk, source) => {
+        const prefix = source === 'stderr' ? '[build][stderr]' : '[build]'
+        this.appendLog(state, `${prefix} ${chunk}`)
+      }
+    )
 
     if (buildResult.exitCode !== 0) {
       state.status = 'failed'
       state.lastExitCode = buildResult.exitCode
       state.lastUpdatedAt = new Date().toISOString()
+      this.emitState(state)
       throw new Error(`Build failed with exit code ${buildResult.exitCode}`)
     }
 
     const jarPath = await resolveRunnableJar(request.modulePath)
     state.jarPath = jarPath
 
-    appendLog(state, `[runtime] Launching java -jar ${jarPath}`)
+    this.appendLog(state, `[runtime] Launching java -jar ${jarPath}`)
 
     const serviceProcess = spawn('java', ['-jar', jarPath], {
       cwd: request.modulePath,
@@ -73,33 +102,37 @@ class ServiceRuntimeManager {
     }
 
     managed.process = serviceProcess
+    managed.stopRequested = false
+    managed.lastLaunchRequest = request
     state.pid = serviceProcess.pid ?? null
     state.status = 'running'
     state.startedAt = new Date().toISOString()
     state.lastExitCode = null
     state.lastUpdatedAt = new Date().toISOString()
+    this.emitState(state)
 
     serviceProcess.stdout.on('data', (chunk) => {
-      appendLog(state, chunk.toString())
+      this.appendLog(state, chunk.toString())
     })
 
     serviceProcess.stderr.on('data', (chunk) => {
-      appendLog(state, chunk.toString())
+      this.appendLog(state, chunk.toString())
     })
 
     serviceProcess.on('exit', (code) => {
       state.pid = null
       state.lastExitCode = code ?? null
-      state.status = code === 0 ? 'stopped' : 'failed'
+      state.status = managed.stopRequested || code === 0 ? 'stopped' : 'failed'
       state.lastUpdatedAt = new Date().toISOString()
       managed.process = null
-      appendLog(state, `[runtime] Process exited with code ${code ?? 'null'}`)
+      managed.stopRequested = false
+      this.appendLog(state, `[runtime] Process exited with code ${code ?? 'null'}`)
     })
 
     serviceProcess.on('error', (error) => {
       state.status = 'failed'
       state.lastUpdatedAt = new Date().toISOString()
-      appendLog(state, `[runtime] ${error.message}`)
+      this.appendLog(state, `[runtime] ${error.message}`)
     })
 
     await delay(1500)
@@ -117,16 +150,83 @@ class ServiceRuntimeManager {
     if (!instance.process) {
       instance.state.status = 'stopped'
       instance.state.lastUpdatedAt = new Date().toISOString()
+      this.emitState(instance.state)
       return instance.state
     }
 
-    instance.process.kill('SIGTERM')
-    appendLog(instance.state, '[runtime] Stop signal sent')
+    instance.stopRequested = true
+    this.appendLog(instance.state, '[runtime] Stop signal sent')
+
+    await new Promise<void>((resolve) => {
+      const runningProcess = instance.process
+
+      if (!runningProcess) {
+        resolve()
+        return
+      }
+
+      const timeout = setTimeout(() => {
+        resolve()
+      }, 5000)
+
+      runningProcess.once('exit', () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+
+      runningProcess.kill('SIGTERM')
+    })
+
     instance.state.status = 'stopped'
     instance.state.pid = null
     instance.state.lastUpdatedAt = new Date().toISOString()
-    instance.process = null
+    this.emitState(instance.state)
     return instance.state
+  }
+
+  async restartService(serviceId: string) {
+    const instance = this.instances.get(serviceId)
+
+    if (!instance || !instance.lastLaunchRequest) {
+      throw new Error(`Service ${serviceId} cannot be restarted because no previous launch config exists.`)
+    }
+
+    if (instance.process) {
+      await this.stopService(serviceId)
+    }
+
+    return this.launchService(instance.lastLaunchRequest)
+  }
+
+  private appendLog(state: ServiceInstanceState, content: string) {
+    const lines = content
+      .split(/\r?\n/)
+      .map((line) => line.trimEnd())
+      .filter((line) => line.length > 0)
+
+    if (lines.length === 0) {
+      return
+    }
+
+    state.logLines.push(...lines)
+
+    if (state.logLines.length > MAX_LOG_LINES) {
+      state.logLines.splice(0, state.logLines.length - MAX_LOG_LINES)
+    }
+
+    state.lastUpdatedAt = new Date().toISOString()
+    this.emitState(state)
+  }
+
+  private emitState(state: ServiceInstanceState) {
+    this.events.emit(this.getEventName(state.serviceId), {
+      ...state,
+      logLines: [...state.logLines]
+    } satisfies ServiceInstanceState)
+  }
+
+  private getEventName(serviceId: string) {
+    return `service:${serviceId}`
   }
 }
 
@@ -208,40 +308,6 @@ async function resolveRunnableJar(modulePath: string) {
 
   jarCandidates.sort((left, right) => right.mtimeMs - left.mtimeMs)
   return jarCandidates[0].fullPath
-}
-
-function appendProcessOutput(
-  state: ServiceInstanceState,
-  prefix: string,
-  stdout: string,
-  stderr: string
-) {
-  for (const part of [stdout, stderr]) {
-    if (!part.trim()) {
-      continue
-    }
-
-    appendLog(state, `${prefix} ${part}`)
-  }
-}
-
-function appendLog(state: ServiceInstanceState, content: string) {
-  const lines = content
-    .split(/\r?\n/)
-    .map((line) => line.trimEnd())
-    .filter((line) => line.length > 0)
-
-  if (lines.length === 0) {
-    return
-  }
-
-  state.logLines.push(...lines)
-
-  if (state.logLines.length > MAX_LOG_LINES) {
-    state.logLines.splice(0, state.logLines.length - MAX_LOG_LINES)
-  }
-
-  state.lastUpdatedAt = new Date().toISOString()
 }
 
 function delay(ms: number) {

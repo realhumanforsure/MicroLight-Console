@@ -78,6 +78,10 @@ export interface ServiceStopRequest {
   serviceId: string
 }
 
+export interface ServiceRestartRequest {
+  serviceId: string
+}
+
 export interface ServiceInstanceState {
   serviceId: string
   artifactId: string
@@ -95,4 +99,9 @@ export interface ServiceInstanceState {
 
 export interface ServiceInstancesResponse {
   instances: ServiceInstanceState[]
+}
+
+export interface ServiceStreamEvent {
+  type: 'snapshot'
+  instance: ServiceInstanceState
 }
