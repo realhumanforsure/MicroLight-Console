@@ -1,0 +1,12 @@
+node_modules
+dist
+out
+coverage
+.DS_Store
+Thumbs.db
+*.log
+apps/*/dist
+apps/*/out
+packages/*/dist
+docs
+README.md

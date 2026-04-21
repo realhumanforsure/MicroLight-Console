@@ -1,0 +1,26 @@
+{
+  "name": "@microlight/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "cross-env MICROLIGHT_SERVER_DEV_ENTRY=../server/src/index.ts electron-vite dev",
+    "build": "vue-tsc --noEmit && electron-vite build"
+  },
+  "dependencies": {
+    "@microlight/shared": "0.1.0",
+    "vue": "^3.5.17"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.1",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "cross-env": "^7.0.3",
+    "electron": "^35.1.4",
+    "electron-vite": "^3.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^5.4.19",
+    "vue-tsc": "^2.2.10"
+  }
+}
+

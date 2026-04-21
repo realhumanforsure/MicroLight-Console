@@ -1,0 +1,88 @@
+import cors from '@fastify/cors'
+import Fastify from 'fastify'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  APP_NAME,
+  APP_VERSION,
+  DEFAULT_SERVER_HOST,
+  DEFAULT_SERVER_PORT,
+  type HealthResponse,
+  type ProjectScanRequest
+} from '@microlight/shared'
+import { scanProject } from './project-scanner.js'
+
+export async function createServer() {
+  const app = Fastify({
+    logger: {
+      transport:
+        process.env.NODE_ENV === 'production'
+          ? undefined
+          : {
+              target: 'pino-pretty',
+              options: {
+                colorize: true,
+                translateTime: 'HH:MM:ss'
+              }
+            }
+    }
+  })
+
+  await app.register(cors, {
+    origin: true
+  })
+
+  app.get('/api/health', async (): Promise<HealthResponse> => {
+    return {
+      ok: true,
+      appName: APP_NAME,
+      version: APP_VERSION,
+      timestamp: new Date().toISOString()
+    }
+  })
+
+  app.post<{ Body: ProjectScanRequest }>('/api/projects/scan', async (request, reply) => {
+    try {
+      return await scanProject(request.body.rootPath)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to scan project'
+      }
+    }
+  })
+
+  return app
+}
+
+export async function startServer() {
+  const app = await createServer()
+  const host = process.env.MICROLIGHT_SERVER_HOST ?? DEFAULT_SERVER_HOST
+  const port = Number(process.env.MICROLIGHT_SERVER_PORT ?? DEFAULT_SERVER_PORT)
+
+  try {
+    await app.listen({ host, port })
+    app.log.info(`MicroLight server listening on http://${host}:${port}`)
+    return app
+  } catch (error) {
+    app.log.error(error)
+    throw error
+  }
+}
+
+const isEntrypoint =
+  process.argv[1] !== undefined &&
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+
+if (isEntrypoint) {
+  const app = await startServer()
+
+  const shutdown = async () => {
+    await app.close()
+    process.exit(0)
+  }
+
+  process.on('SIGINT', shutdown)
+  process.on('SIGTERM', shutdown)
+}
