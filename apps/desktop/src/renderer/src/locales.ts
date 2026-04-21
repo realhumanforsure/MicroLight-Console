@@ -30,6 +30,29 @@ interface LocaleMessages {
   rootArtifact: string
   moduleCount: string
   packaging: string
+  environmentTitle: string
+  detectEnvironment: string
+  environmentRecommendedTool: string
+  environmentUnavailable: string
+  environmentAvailable: string
+  environmentJava: string
+  environmentMavenWrapper: string
+  environmentMaven: string
+  environmentMvnd: string
+  serviceLaunch: string
+  serviceStop: string
+  serviceStatus: string
+  servicePid: string
+  serviceBuildTool: string
+  serviceLogs: string
+  serviceIdle: string
+  serviceBuilding: string
+  serviceRunning: string
+  serviceStopped: string
+  serviceFailed: string
+  serviceNoLogs: string
+  servicePreparing: string
+  runtimeDetectFirst: string
   startupClassCountSuffix: string
   noStartupClassDetected: string
   selectProjectFirst: string
@@ -70,6 +93,29 @@ export const messages: Record<Locale, LocaleMessages> = {
     rootArtifact: '根制品',
     moduleCount: '模块数',
     packaging: '打包方式',
+    environmentTitle: '运行环境',
+    detectEnvironment: '检测环境',
+    environmentRecommendedTool: '推荐构建器',
+    environmentUnavailable: '不可用',
+    environmentAvailable: '可用',
+    environmentJava: 'Java',
+    environmentMavenWrapper: 'Maven Wrapper',
+    environmentMaven: 'System Maven',
+    environmentMvnd: 'mvnd',
+    serviceLaunch: '构建并启动',
+    serviceStop: '停止服务',
+    serviceStatus: '状态',
+    servicePid: 'PID',
+    serviceBuildTool: '构建器',
+    serviceLogs: '最近日志',
+    serviceIdle: '空闲',
+    serviceBuilding: '构建中',
+    serviceRunning: '运行中',
+    serviceStopped: '已停止',
+    serviceFailed: '失败',
+    serviceNoLogs: '当前还没有日志输出。',
+    servicePreparing: '处理中...',
+    runtimeDetectFirst: '请先完成项目扫描，再进行环境探测。',
     startupClassCountSuffix: '个启动类',
     noStartupClassDetected: '当前模块还没有识别到 Spring Boot 启动类。',
     selectProjectFirst: '请先选择一个 Maven 项目目录。',
@@ -106,6 +152,29 @@ export const messages: Record<Locale, LocaleMessages> = {
     rootArtifact: 'Root Artifact',
     moduleCount: 'Modules',
     packaging: 'Packaging',
+    environmentTitle: 'Runtime Environment',
+    detectEnvironment: 'Detect Runtime',
+    environmentRecommendedTool: 'Recommended Builder',
+    environmentUnavailable: 'Unavailable',
+    environmentAvailable: 'Available',
+    environmentJava: 'Java',
+    environmentMavenWrapper: 'Maven Wrapper',
+    environmentMaven: 'System Maven',
+    environmentMvnd: 'mvnd',
+    serviceLaunch: 'Build and Start',
+    serviceStop: 'Stop Service',
+    serviceStatus: 'Status',
+    servicePid: 'PID',
+    serviceBuildTool: 'Build Tool',
+    serviceLogs: 'Recent Logs',
+    serviceIdle: 'Idle',
+    serviceBuilding: 'Building',
+    serviceRunning: 'Running',
+    serviceStopped: 'Stopped',
+    serviceFailed: 'Failed',
+    serviceNoLogs: 'No logs yet.',
+    servicePreparing: 'Working...',
+    runtimeDetectFirst: 'Please scan a project before runtime detection.',
     startupClassCountSuffix: 'startup class(es)',
     noStartupClassDetected: 'No Spring Boot startup class detected in this module yet.',
     selectProjectFirst: 'Please select a Maven project directory first.',

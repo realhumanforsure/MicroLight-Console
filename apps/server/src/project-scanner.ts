@@ -13,6 +13,7 @@ const xmlParser = new XMLParser({
 })
 
 interface PomProject {
+  name?: string
   artifactId?: string
   packaging?: string
   version?: string
@@ -72,7 +73,7 @@ async function scanModule(modulePath: string): Promise<ScannedModule> {
   )
 
   return {
-    moduleName: path.basename(modulePath),
+    moduleName: project.name ?? path.basename(modulePath),
     modulePath,
     artifactId: project.artifactId ?? path.basename(modulePath),
     packaging: project.packaging ?? 'jar',

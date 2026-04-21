@@ -144,6 +144,17 @@ h1 {
   font-size: 26px;
 }
 
+.project-panel__subheader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.project-panel__subheader h3 {
+  margin: 0;
+}
+
 .actions {
   display: flex;
   gap: 12px;
@@ -244,6 +255,46 @@ h1 {
   word-break: break-all;
 }
 
+.candidate-item {
+  gap: 12px;
+}
+
+.candidate-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.service-state {
+  display: grid;
+  gap: 12px;
+}
+
+.logs-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(4, 10, 20, 0.92);
+}
+
+.logs-panel span {
+  color: #8fa5c3;
+}
+
+.logs-panel pre {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d9e7fb;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .panel h2 {
   margin: 0 0 20px;
   font-size: 18px;
@@ -304,7 +355,9 @@ dd {
   }
 
   .project-panel__header,
-  .module-card__header {
+  .module-card__header,
+  .candidate-topline,
+  .project-panel__subheader {
     flex-direction: column;
   }
 }

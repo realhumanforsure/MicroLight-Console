@@ -8,9 +8,15 @@ import {
   DEFAULT_SERVER_HOST,
   DEFAULT_SERVER_PORT,
   type HealthResponse,
-  type ProjectScanRequest
+  type ProjectScanRequest,
+  type RuntimeDetectionRequest,
+  type ServiceInstancesResponse,
+  type ServiceLaunchRequest,
+  type ServiceStopRequest
 } from '@microlight/shared'
 import { scanProject } from './project-scanner.js'
+import { detectRuntimeTools } from './runtime-tools.js'
+import { serviceRuntimeManager } from './service-runtime.js'
 
 export async function createServer() {
   const app = Fastify({
@@ -49,6 +55,48 @@ export async function createServer() {
       reply.code(400)
       return {
         message: error instanceof Error ? error.message : 'Failed to scan project'
+      }
+    }
+  })
+
+  app.post<{ Body: RuntimeDetectionRequest }>('/api/runtime/detect', async (request, reply) => {
+    try {
+      return await detectRuntimeTools(request.body.rootPath)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to detect runtime tools'
+      }
+    }
+  })
+
+  app.get('/api/services/instances', async (): Promise<ServiceInstancesResponse> => {
+    return {
+      instances: serviceRuntimeManager.getInstances()
+    }
+  })
+
+  app.post<{ Body: ServiceLaunchRequest }>('/api/services/launch', async (request, reply) => {
+    try {
+      return await serviceRuntimeManager.launchService(request.body)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to launch service'
+      }
+    }
+  })
+
+  app.post<{ Body: ServiceStopRequest }>('/api/services/stop', async (request, reply) => {
+    try {
+      return await serviceRuntimeManager.stopService(request.body.serviceId)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to stop service'
       }
     }
   })

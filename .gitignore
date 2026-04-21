@@ -10,3 +10,5 @@ apps/*/out
 packages/*/dist
 docs
 README.md
+target
+fixtures/*/target

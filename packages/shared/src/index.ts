@@ -39,3 +39,60 @@ export interface ProjectScanResult {
   moduleCount: number
   modules: ScannedModule[]
 }
+
+export type BuildToolKind = 'mvnw' | 'mvn' | 'mvnd'
+export type BuildToolPreference = 'auto' | BuildToolKind
+export type ServiceStatus = 'idle' | 'building' | 'running' | 'stopped' | 'failed'
+
+export interface ToolAvailability {
+  kind: 'java' | BuildToolKind
+  available: boolean
+  command: string
+  version: string | null
+  detail: string | null
+}
+
+export interface RuntimeDetectionRequest {
+  rootPath: string
+}
+
+export interface RuntimeDetectionResult {
+  rootPath: string
+  java: ToolAvailability
+  mavenWrapper: ToolAvailability
+  maven: ToolAvailability
+  mvnd: ToolAvailability
+  recommendedBuildTool: BuildToolKind | null
+}
+
+export interface ServiceLaunchRequest {
+  rootPath: string
+  modulePath: string
+  artifactId: string
+  mainClass: string
+  buildToolPreference: BuildToolPreference
+  skipTests: boolean
+}
+
+export interface ServiceStopRequest {
+  serviceId: string
+}
+
+export interface ServiceInstanceState {
+  serviceId: string
+  artifactId: string
+  mainClass: string
+  modulePath: string
+  status: ServiceStatus
+  pid: number | null
+  buildTool: BuildToolKind | null
+  jarPath: string | null
+  startedAt: string | null
+  lastUpdatedAt: string
+  lastExitCode: number | null
+  logLines: string[]
+}
+
+export interface ServiceInstancesResponse {
+  instances: ServiceInstanceState[]
+}
