@@ -3,7 +3,10 @@ import path from 'node:path'
 import { XMLParser } from 'fast-xml-parser'
 import {
   DEFAULT_BUILD_TOOL_PREFERENCE,
+  DEFAULT_JVM_ARGS,
+  DEFAULT_PROGRAM_ARGS,
   DEFAULT_SKIP_TESTS,
+  DEFAULT_SPRING_PROFILES,
   type BuildToolPreference,
   type ProjectScanResult,
   type ScannedModule,
@@ -216,6 +219,9 @@ function resolveSavedPreference(artifactId: string, className: string, packageNa
   return {
     savedBuildToolPreference:
       preference?.buildToolPreference ?? (DEFAULT_BUILD_TOOL_PREFERENCE as BuildToolPreference),
-    savedSkipTests: preference?.skipTests ?? DEFAULT_SKIP_TESTS
+    savedSkipTests: preference?.skipTests ?? DEFAULT_SKIP_TESTS,
+    savedJvmArgs: preference?.jvmArgs ?? DEFAULT_JVM_ARGS,
+    savedProgramArgs: preference?.programArgs ?? DEFAULT_PROGRAM_ARGS,
+    savedSpringProfiles: preference?.springProfiles ?? DEFAULT_SPRING_PROFILES
   }
 }

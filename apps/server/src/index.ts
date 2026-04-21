@@ -110,7 +110,10 @@ export async function createServer() {
         artifactId: request.body.artifactId,
         mainClass: request.body.mainClass,
         buildToolPreference: request.body.buildToolPreference,
-        skipTests: request.body.skipTests
+        skipTests: request.body.skipTests,
+        jvmArgs: request.body.jvmArgs,
+        programArgs: request.body.programArgs,
+        springProfiles: request.body.springProfiles
       })
       return await serviceRuntimeManager.launchService(request.body)
     } catch (error) {

@@ -55,6 +55,15 @@ interface LocaleMessages {
   serviceLaunch: string
   serviceRestart: string
   serviceStop: string
+  serviceConfigTitle: string
+  serviceConfigBuildTool: string
+  serviceConfigProfiles: string
+  serviceConfigProfilesPlaceholder: string
+  serviceConfigJvmArgs: string
+  serviceConfigJvmArgsPlaceholder: string
+  serviceConfigProgramArgs: string
+  serviceConfigProgramArgsPlaceholder: string
+  serviceConfigPortInvalid: string
   serviceStatus: string
   servicePort: string
   servicePortReachable: string
@@ -142,6 +151,15 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLaunch: '构建并启动',
     serviceRestart: '重启服务',
     serviceStop: '停止服务',
+    serviceConfigTitle: '启动配置',
+    serviceConfigBuildTool: '本次构建器',
+    serviceConfigProfiles: 'Spring Profiles',
+    serviceConfigProfilesPlaceholder: '例如：dev,local',
+    serviceConfigJvmArgs: 'JVM 参数',
+    serviceConfigJvmArgsPlaceholder: '例如：-Xms256m -Xmx512m',
+    serviceConfigProgramArgs: '程序参数',
+    serviceConfigProgramArgsPlaceholder: '例如：--server.servlet.context-path=/demo',
+    serviceConfigPortInvalid: '运行端口必须是 1 到 65535 之间的整数。',
     serviceStatus: '状态',
     servicePort: '端口',
     servicePortReachable: '端口连通',
@@ -225,6 +243,15 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLaunch: 'Build and Start',
     serviceRestart: 'Restart Service',
     serviceStop: 'Stop Service',
+    serviceConfigTitle: 'Launch Configuration',
+    serviceConfigBuildTool: 'Builder for This Run',
+    serviceConfigProfiles: 'Spring Profiles',
+    serviceConfigProfilesPlaceholder: 'For example: dev,local',
+    serviceConfigJvmArgs: 'JVM Arguments',
+    serviceConfigJvmArgsPlaceholder: 'For example: -Xms256m -Xmx512m',
+    serviceConfigProgramArgs: 'Program Arguments',
+    serviceConfigProgramArgsPlaceholder: 'For example: --server.servlet.context-path=/demo',
+    serviceConfigPortInvalid: 'Runtime port must be an integer between 1 and 65535.',
     serviceStatus: 'Status',
     servicePort: 'Port',
     servicePortReachable: 'Port Reachability',

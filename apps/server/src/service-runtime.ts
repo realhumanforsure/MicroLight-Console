@@ -110,9 +110,11 @@ class ServiceRuntimeManager {
     const jarPath = await resolveRunnableJar(request.modulePath)
     state.jarPath = jarPath
 
-    this.appendLog(state, `[runtime] Launching java -jar ${jarPath}`)
+    const launchArgs = createLaunchArgs(request, jarPath)
 
-    const serviceProcess = spawn('java', ['-jar', jarPath], {
+    this.appendLog(state, `[runtime] Launching java ${launchArgs.join(' ')}`)
+
+    const serviceProcess = spawn('java', launchArgs, {
       cwd: request.modulePath,
       env: process.env,
       stdio: 'pipe'
@@ -346,6 +348,20 @@ function createBuildArgs(
   return args
 }
 
+function createLaunchArgs(request: ServiceLaunchRequest, jarPath: string) {
+  const jvmArgs = parseCommandLineArguments(request.jvmArgs)
+  const programArgs = parseCommandLineArguments(request.programArgs)
+  const runtimePortArgs =
+    request.runtimePort === null ? [] : [`--server.port=${String(request.runtimePort)}`]
+  const normalizedProfiles = normalizeProfiles(request.springProfiles)
+  const profileArgs =
+    normalizedProfiles.length > 0
+      ? [`--spring.profiles.active=${normalizedProfiles.join(',')}`]
+      : []
+
+  return [...jvmArgs, '-jar', jarPath, ...programArgs, ...runtimePortArgs, ...profileArgs]
+}
+
 function normalizeModuleSelector(rootPath: string, modulePath: string) {
   const normalizedRootPath = path.resolve(rootPath)
   const normalizedModulePath = path.resolve(modulePath)
@@ -382,6 +398,79 @@ async function resolveRunnableJar(modulePath: string) {
 
   jarCandidates.sort((left, right) => right.mtimeMs - left.mtimeMs)
   return jarCandidates[0].fullPath
+}
+
+function parseCommandLineArguments(input: string) {
+  const trimmedInput = input.trim()
+
+  if (trimmedInput.length === 0) {
+    return []
+  }
+
+  const args: string[] = []
+  let current = ''
+  let quote: '"' | "'" | null = null
+  let escaping = false
+
+  for (const character of trimmedInput) {
+    if (escaping) {
+      current += character
+      escaping = false
+      continue
+    }
+
+    if (character === '\\' && quote !== "'") {
+      escaping = true
+      continue
+    }
+
+    if (quote) {
+      if (character === quote) {
+        quote = null
+      } else {
+        current += character
+      }
+
+      continue
+    }
+
+    if (character === '"' || character === "'") {
+      quote = character
+      continue
+    }
+
+    if (/\s/.test(character)) {
+      if (current.length > 0) {
+        args.push(current)
+        current = ''
+      }
+
+      continue
+    }
+
+    current += character
+  }
+
+  if (escaping) {
+    current += '\\'
+  }
+
+  if (quote !== null) {
+    throw new Error('Launch arguments contain an unterminated quoted string.')
+  }
+
+  if (current.length > 0) {
+    args.push(current)
+  }
+
+  return args
+}
+
+function normalizeProfiles(input: string) {
+  return input
+    .split(',')
+    .map((profile) => profile.trim())
+    .filter((profile) => profile.length > 0)
 }
 
 function delay(ms: number) {

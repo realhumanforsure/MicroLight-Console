@@ -5,6 +5,9 @@ export const DEFAULT_SERVER_PORT = 3210
 export const DEFAULT_SERVER_URL = `http://${DEFAULT_SERVER_HOST}:${DEFAULT_SERVER_PORT}`
 export const DEFAULT_BUILD_TOOL_PREFERENCE: BuildToolPreference = 'auto'
 export const DEFAULT_SKIP_TESTS = true
+export const DEFAULT_JVM_ARGS = ''
+export const DEFAULT_PROGRAM_ARGS = ''
+export const DEFAULT_SPRING_PROFILES = ''
 
 export interface HealthResponse {
   ok: boolean
@@ -26,6 +29,9 @@ export interface ServiceCandidate {
   defaultPort: number | null
   savedBuildToolPreference: BuildToolPreference
   savedSkipTests: boolean
+  savedJvmArgs: string
+  savedProgramArgs: string
+  savedSpringProfiles: string
 }
 
 export interface ScannedModule {
@@ -78,6 +84,9 @@ export interface ServiceLaunchRequest {
   runtimePort: number | null
   buildToolPreference: BuildToolPreference
   skipTests: boolean
+  jvmArgs: string
+  programArgs: string
+  springProfiles: string
 }
 
 export interface ServiceStopRequest {
@@ -150,5 +159,8 @@ export interface ServicePreference {
   mainClass: string
   buildToolPreference: BuildToolPreference
   skipTests: boolean
+  jvmArgs: string
+  programArgs: string
+  springProfiles: string
   updatedAt: string
 }

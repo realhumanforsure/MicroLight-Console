@@ -5,7 +5,10 @@ import path from 'node:path'
 import { mkdirSync } from 'node:fs'
 import {
   DEFAULT_BUILD_TOOL_PREFERENCE,
+  DEFAULT_JVM_ARGS,
+  DEFAULT_PROGRAM_ARGS,
   DEFAULT_SKIP_TESTS,
+  DEFAULT_SPRING_PROFILES,
   type AppSettings,
   type AppSettingsUpdateRequest,
   type BuildToolPreference,
@@ -121,6 +124,9 @@ class PersistenceService {
             main_class,
             build_tool_preference,
             skip_tests,
+            jvm_args,
+            program_args,
+            spring_profiles,
             updated_at
           )
           VALUES (
@@ -131,6 +137,9 @@ class PersistenceService {
             @mainClass,
             @buildToolPreference,
             @skipTests,
+            @jvmArgs,
+            @programArgs,
+            @springProfiles,
             @updatedAt
           )
           ON CONFLICT(service_id)
@@ -141,6 +150,9 @@ class PersistenceService {
             main_class = excluded.main_class,
             build_tool_preference = excluded.build_tool_preference,
             skip_tests = excluded.skip_tests,
+            jvm_args = excluded.jvm_args,
+            program_args = excluded.program_args,
+            spring_profiles = excluded.spring_profiles,
             updated_at = excluded.updated_at
         `
       )
@@ -153,11 +165,19 @@ class PersistenceService {
 
   getServicePreference(
     serviceId: string
-  ): Pick<ServicePreference, 'buildToolPreference' | 'skipTests'> | null {
+  ): Pick<
+    ServicePreference,
+    'buildToolPreference' | 'skipTests' | 'jvmArgs' | 'programArgs' | 'springProfiles'
+  > | null {
     const row = this.db
       .prepare(
         `
-          SELECT build_tool_preference AS buildToolPreference, skip_tests AS skipTests
+          SELECT
+            build_tool_preference AS buildToolPreference,
+            skip_tests AS skipTests,
+            jvm_args AS jvmArgs,
+            program_args AS programArgs,
+            spring_profiles AS springProfiles
           FROM service_preferences
           WHERE service_id = ?
         `
@@ -166,6 +186,9 @@ class PersistenceService {
       | {
           buildToolPreference: BuildToolPreference
           skipTests: number
+          jvmArgs: string | null
+          programArgs: string | null
+          springProfiles: string | null
         }
       | undefined
 
@@ -175,7 +198,10 @@ class PersistenceService {
 
     return {
       buildToolPreference: row.buildToolPreference,
-      skipTests: row.skipTests === 1
+      skipTests: row.skipTests === 1,
+      jvmArgs: row.jvmArgs ?? DEFAULT_JVM_ARGS,
+      programArgs: row.programArgs ?? DEFAULT_PROGRAM_ARGS,
+      springProfiles: row.springProfiles ?? DEFAULT_SPRING_PROFILES
     }
   }
 
@@ -204,9 +230,28 @@ class PersistenceService {
         main_class TEXT NOT NULL,
         build_tool_preference TEXT NOT NULL,
         skip_tests INTEGER NOT NULL,
+        jvm_args TEXT NOT NULL DEFAULT '',
+        program_args TEXT NOT NULL DEFAULT '',
+        spring_profiles TEXT NOT NULL DEFAULT '',
         updated_at TEXT NOT NULL
       );
     `)
+
+    this.ensureColumn('service_preferences', 'jvm_args', "TEXT NOT NULL DEFAULT ''")
+    this.ensureColumn('service_preferences', 'program_args', "TEXT NOT NULL DEFAULT ''")
+    this.ensureColumn('service_preferences', 'spring_profiles', "TEXT NOT NULL DEFAULT ''")
+  }
+
+  private ensureColumn(tableName: string, columnName: string, definition: string) {
+    const columns = this.db
+      .prepare(`PRAGMA table_info(${tableName})`)
+      .all() as Array<{ name: string }>
+
+    if (columns.some((column) => column.name === columnName)) {
+      return
+    }
+
+    this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`)
   }
 }
 

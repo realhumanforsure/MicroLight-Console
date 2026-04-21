@@ -15,11 +15,27 @@ import {
   type RecentProject,
   type RuntimeDetectionRequest,
   type RuntimeDetectionResult,
+  type ServiceCandidate,
   type ServiceInstanceState,
   type ServiceLaunchRequest,
   type ServiceStreamEvent
 } from '@microlight/shared'
 import { DEFAULT_LOCALE, messages, type Locale } from './locales'
+
+interface RuntimeInfo {
+  appName: string
+  backendPid: number | null
+  serverUrl: string
+}
+
+interface ServiceLaunchConfig {
+  runtimePort: string
+  buildToolPreference: BuildToolPreference
+  skipTests: boolean
+  jvmArgs: string
+  programArgs: string
+  springProfiles: string
+}
 
 const runtimeInfo = ref<RuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
@@ -27,6 +43,7 @@ const selectedProjectPath = ref('')
 const projectScan = ref<ProjectScanResult | null>(null)
 const runtimeDetection = ref<RuntimeDetectionResult | null>(null)
 const serviceInstances = ref<Record<string, ServiceInstanceState>>({})
+const serviceLaunchConfigs = ref<Record<string, ServiceLaunchConfig>>({})
 const locale = ref<Locale>(DEFAULT_LOCALE)
 const appSettings = ref<AppSettings>({
   locale: DEFAULT_LOCALE,
@@ -94,6 +111,24 @@ watch(
   },
   { deep: true }
 )
+
+watch(projectScan, (scanResult) => {
+  if (!scanResult) {
+    serviceLaunchConfigs.value = {}
+    return
+  }
+
+  const nextConfigs: Record<string, ServiceLaunchConfig> = {}
+
+  for (const module of scanResult.modules) {
+    for (const candidate of module.serviceCandidates) {
+      const serviceId = getServiceId(module.artifactId, candidate.mainClass)
+      nextConfigs[serviceId] = createLaunchConfig(candidate)
+    }
+  }
+
+  serviceLaunchConfigs.value = nextConfigs
+})
 
 async function initializeApp() {
   loading.value = true
@@ -271,6 +306,57 @@ function getServiceId(artifactId: string, mainClass: string) {
   return `${artifactId}:${mainClass}`
 }
 
+function createLaunchConfig(candidate: ServiceCandidate): ServiceLaunchConfig {
+  return {
+    runtimePort: candidate.defaultPort === null ? '' : String(candidate.defaultPort),
+    buildToolPreference: candidate.savedBuildToolPreference,
+    skipTests: candidate.savedSkipTests,
+    jvmArgs: candidate.savedJvmArgs,
+    programArgs: candidate.savedProgramArgs,
+    springProfiles: candidate.savedSpringProfiles
+  }
+}
+
+function getLaunchConfig(artifactId: string, candidate: ServiceCandidate) {
+  const serviceId = getServiceId(artifactId, candidate.mainClass)
+  const existing = serviceLaunchConfigs.value[serviceId]
+
+  if (existing) {
+    return existing
+  }
+
+  const nextConfig = createLaunchConfig(candidate)
+  serviceLaunchConfigs.value = {
+    ...serviceLaunchConfigs.value,
+    [serviceId]: nextConfig
+  }
+
+  return nextConfig
+}
+
+function normalizeRuntimePort(value: string) {
+  const trimmedValue = value.trim()
+
+  if (trimmedValue.length === 0) {
+    return null
+  }
+
+  const parsed = Number(trimmedValue)
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
+    throw new Error(text.value.serviceConfigPortInvalid)
+  }
+
+  return parsed
+}
+
+function normalizeProfiles(value: string) {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .join(',')
+}
+
 function getServiceStatusLabel(status: ServiceInstanceState['status']) {
   switch (status) {
     case 'building':
@@ -298,19 +384,24 @@ function formatPort(port: number | null) {
   return port === null ? text.value.runtimePending : String(port)
 }
 
-async function launchService(modulePath: string, artifactId: string, mainClass: string) {
-  const serviceId = getServiceId(artifactId, mainClass)
+async function launchService(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
+  const serviceId = getServiceId(artifactId, candidate.mainClass)
   serviceActionState.value[serviceId] = true
+  runtimeErrorMessage.value = ''
 
   try {
+    const launchConfig = getLaunchConfig(artifactId, candidate)
     const requestBody: ServiceLaunchRequest = {
       rootPath: selectedProjectPath.value,
       modulePath,
       artifactId,
-      mainClass,
-      runtimePort: candidatePort(modulePath, artifactId, mainClass),
-      buildToolPreference: candidateBuildToolPreference(modulePath, artifactId, mainClass),
-      skipTests: candidateSkipTests(modulePath, artifactId, mainClass)
+      mainClass: candidate.mainClass,
+      runtimePort: normalizeRuntimePort(launchConfig.runtimePort),
+      buildToolPreference: launchConfig.buildToolPreference,
+      skipTests: launchConfig.skipTests,
+      jvmArgs: launchConfig.jvmArgs.trim(),
+      programArgs: launchConfig.programArgs.trim(),
+      springProfiles: normalizeProfiles(launchConfig.springProfiles)
     }
 
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/launch`, {
@@ -449,33 +540,6 @@ function ensureLogStream(serviceId: string) {
   }
 
   logStreams.set(serviceId, source)
-}
-
-function findCandidate(modulePath: string, artifactId: string, mainClass: string) {
-  const module = projectScan.value?.modules.find(
-    (item) => item.modulePath === modulePath && item.artifactId === artifactId
-  )
-
-  return module?.serviceCandidates.find((item) => item.mainClass === mainClass) ?? null
-}
-
-function candidatePort(modulePath: string, artifactId: string, mainClass: string) {
-  return findCandidate(modulePath, artifactId, mainClass)?.defaultPort ?? 8080
-}
-
-function candidateBuildToolPreference(
-  modulePath: string,
-  artifactId: string,
-  mainClass: string
-): BuildToolPreference {
-  return (
-    findCandidate(modulePath, artifactId, mainClass)?.savedBuildToolPreference ??
-    appSettings.value.defaultBuildToolPreference
-  )
-}
-
-function candidateSkipTests(modulePath: string, artifactId: string, mainClass: string) {
-  return findCandidate(modulePath, artifactId, mainClass)?.savedSkipTests ?? appSettings.value.defaultSkipTests
 }
 
 const activeLogInstance = computed(() => {
@@ -795,7 +859,7 @@ const buildToolOptions = computed(() => [
                       class="refresh-button"
                       type="button"
                       :disabled="serviceActionState[getServiceId(module.artifactId, candidate.mainClass)]"
-                      @click="launchService(module.modulePath, module.artifactId, candidate.mainClass)"
+                      @click="launchService(module.modulePath, module.artifactId, candidate)"
                     >
                       {{
                         serviceActionState[getServiceId(module.artifactId, candidate.mainClass)]
@@ -820,6 +884,70 @@ const buildToolOptions = computed(() => [
                       {{ text.serviceStop }}
                     </button>
                   </div>
+                </div>
+
+                <div class="candidate-config-grid">
+                  <div class="candidate-config-grid__header">
+                    <strong>{{ text.serviceConfigTitle }}</strong>
+                  </div>
+
+                  <label class="settings-field">
+                    <span>{{ text.servicePort }}</span>
+                    <input
+                      v-model="getLaunchConfig(module.artifactId, candidate).runtimePort"
+                      type="number"
+                      min="1"
+                      max="65535"
+                    />
+                  </label>
+
+                  <label class="settings-field">
+                    <span>{{ text.serviceConfigBuildTool }}</span>
+                    <select v-model="getLaunchConfig(module.artifactId, candidate).buildToolPreference">
+                      <option
+                        v-for="option in buildToolOptions"
+                        :key="option.value"
+                        :value="option.value"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
+
+                  <label class="settings-field">
+                    <span>{{ text.serviceConfigProfiles }}</span>
+                    <input
+                      v-model="getLaunchConfig(module.artifactId, candidate).springProfiles"
+                      type="text"
+                      :placeholder="text.serviceConfigProfilesPlaceholder"
+                    />
+                  </label>
+
+                  <label class="settings-toggle">
+                    <input
+                      v-model="getLaunchConfig(module.artifactId, candidate).skipTests"
+                      type="checkbox"
+                    />
+                    <span>{{ text.settingsSkipTests }}</span>
+                  </label>
+
+                  <label class="settings-field candidate-config-field--wide">
+                    <span>{{ text.serviceConfigJvmArgs }}</span>
+                    <textarea
+                      v-model="getLaunchConfig(module.artifactId, candidate).jvmArgs"
+                      rows="2"
+                      :placeholder="text.serviceConfigJvmArgsPlaceholder"
+                    />
+                  </label>
+
+                  <label class="settings-field candidate-config-field--wide">
+                    <span>{{ text.serviceConfigProgramArgs }}</span>
+                    <textarea
+                      v-model="getLaunchConfig(module.artifactId, candidate).programArgs"
+                      rows="2"
+                      :placeholder="text.serviceConfigProgramArgsPlaceholder"
+                    />
+                  </label>
                 </div>
 
                 <div
