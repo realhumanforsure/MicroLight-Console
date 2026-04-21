@@ -21,6 +21,7 @@ export interface ServiceCandidate {
   mainClass: string
   javaFilePath: string
   modulePath: string
+  defaultPort: number | null
 }
 
 export interface ScannedModule {
@@ -70,6 +71,7 @@ export interface ServiceLaunchRequest {
   modulePath: string
   artifactId: string
   mainClass: string
+  runtimePort: number | null
   buildToolPreference: BuildToolPreference
   skipTests: boolean
 }
@@ -94,6 +96,11 @@ export interface ServiceInstanceState {
   startedAt: string | null
   lastUpdatedAt: string
   lastExitCode: number | null
+  runtimePort: number | null
+  portReachable: boolean
+  cpuPercent: number | null
+  memoryRssBytes: number | null
+  logFilePath: string | null
   logLines: string[]
 }
 

@@ -21,6 +21,7 @@ const projectScan = ref<ProjectScanResult | null>(null)
 const runtimeDetection = ref<RuntimeDetectionResult | null>(null)
 const serviceInstances = ref<Record<string, ServiceInstanceState>>({})
 const locale = ref<Locale>(DEFAULT_LOCALE)
+const selectedLogServiceId = ref('')
 const loading = ref(true)
 const scanning = ref(false)
 const detecting = ref(false)
@@ -164,6 +165,22 @@ function getServiceStatusLabel(status: ServiceInstanceState['status']) {
   }
 }
 
+function formatCpu(cpuPercent: number | null) {
+  return cpuPercent === null ? text.value.runtimePending : `${cpuPercent.toFixed(1)}%`
+}
+
+function formatMemory(memoryRssBytes: number | null) {
+  if (memoryRssBytes === null) {
+    return text.value.runtimePending
+  }
+
+  return `${(memoryRssBytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function formatPort(port: number | null) {
+  return port === null ? text.value.runtimePending : String(port)
+}
+
 async function launchService(
   modulePath: string,
   artifactId: string,
@@ -178,6 +195,7 @@ async function launchService(
       modulePath,
       artifactId,
       mainClass,
+      runtimePort: candidatePort(modulePath, artifactId, mainClass),
       buildToolPreference: 'auto',
       skipTests: true
     }
@@ -200,6 +218,7 @@ async function launchService(
       ...serviceInstances.value,
       [instance.serviceId]: instance
     }
+    selectedLogServiceId.value = instance.serviceId
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown launch error'
   } finally {
@@ -230,6 +249,7 @@ async function stopService(serviceId: string) {
       ...serviceInstances.value,
       [instance.serviceId]: instance
     }
+    selectedLogServiceId.value = instance.serviceId
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown stop error'
   } finally {
@@ -343,6 +363,10 @@ function ensureLogStream(serviceId: string) {
         ...serviceInstances.value,
         [payload.instance.serviceId]: payload.instance
       }
+
+      if (!selectedLogServiceId.value) {
+        selectedLogServiceId.value = payload.instance.serviceId
+      }
     } catch {
       // Ignore malformed stream payloads in the initial implementation.
     }
@@ -355,6 +379,26 @@ function ensureLogStream(serviceId: string) {
 
   logStreams.set(serviceId, source)
 }
+
+function candidatePort(modulePath: string, artifactId: string, mainClass: string) {
+  const module = projectScan.value?.modules.find((item) => item.modulePath === modulePath && item.artifactId === artifactId)
+  const candidate = module?.serviceCandidates.find((item) => item.mainClass === mainClass)
+  return candidate?.defaultPort ?? 8080
+}
+
+const activeLogInstance = computed(() => {
+  if (!selectedLogServiceId.value) {
+    return null
+  }
+
+  return serviceInstances.value[selectedLogServiceId.value] ?? null
+})
+
+const logWorkspaceServices = computed(() =>
+  Object.values(serviceInstances.value).sort((left, right) =>
+    left.artifactId.localeCompare(right.artifactId, 'zh-CN')
+  )
+)
 </script>
 
 <template>
@@ -617,6 +661,22 @@ function ensureLogStream(serviceId: string) {
                       }}
                     </div>
                     <div class="pill ghost">
+                      {{ text.servicePort }}:
+                      {{
+                        formatPort(
+                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].runtimePort
+                        )
+                      }}
+                    </div>
+                    <div class="pill ghost">
+                      {{ text.servicePortReachable }}:
+                      {{
+                        serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].portReachable
+                          ? text.openPort
+                          : text.closedPort
+                      }}
+                    </div>
+                    <div class="pill ghost">
                       {{ text.servicePid }}:
                       {{
                         serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].pid ??
@@ -628,6 +688,22 @@ function ensureLogStream(serviceId: string) {
                       {{
                         serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].buildTool ??
                         text.runtimePending
+                      }}
+                    </div>
+                    <div class="pill ghost">
+                      {{ text.serviceCpu }}:
+                      {{
+                        formatCpu(
+                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].cpuPercent
+                        )
+                      }}
+                    </div>
+                    <div class="pill ghost">
+                      {{ text.serviceMemory }}:
+                      {{
+                        formatMemory(
+                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].memoryRssBytes
+                        )
                       }}
                     </div>
                   </div>
@@ -652,6 +728,70 @@ function ensureLogStream(serviceId: string) {
           </article>
         </div>
       </div>
+    </section>
+
+    <section class="project-panel">
+      <div class="project-panel__subheader">
+        <h2>{{ text.logsWorkspaceTitle }}</h2>
+      </div>
+
+      <template v-if="logWorkspaceServices.length === 0">
+        <p class="muted">{{ text.logsWorkspaceEmpty }}</p>
+      </template>
+      <template v-else>
+        <div class="workspace-layout">
+          <aside class="workspace-sidebar">
+            <button
+              v-for="instance in logWorkspaceServices"
+              :key="instance.serviceId"
+              class="workspace-service-button"
+              :class="{ active: selectedLogServiceId === instance.serviceId }"
+              type="button"
+              @click="selectedLogServiceId = instance.serviceId"
+            >
+              <strong>{{ instance.artifactId }}</strong>
+              <span>{{ getServiceStatusLabel(instance.status) }}</span>
+            </button>
+          </aside>
+
+          <div class="workspace-main">
+            <template v-if="activeLogInstance">
+              <div class="scan-meta">
+                <div class="pill">
+                  {{ text.serviceStatus }}: {{ getServiceStatusLabel(activeLogInstance.status) }}
+                </div>
+                <div class="pill ghost">
+                  {{ text.servicePort }}: {{ formatPort(activeLogInstance.runtimePort) }}
+                </div>
+                <div class="pill ghost">
+                  {{ text.servicePortReachable }}:
+                  {{ activeLogInstance.portReachable ? text.openPort : text.closedPort }}
+                </div>
+                <div class="pill ghost">
+                  {{ text.serviceCpu }}: {{ formatCpu(activeLogInstance.cpuPercent) }}
+                </div>
+                <div class="pill ghost">
+                  {{ text.serviceMemory }}: {{ formatMemory(activeLogInstance.memoryRssBytes) }}
+                </div>
+              </div>
+
+              <div class="workspace-meta">
+                <span>{{ text.serviceLogFile }}</span>
+                <strong>{{ activeLogInstance.logFilePath ?? text.runtimePending }}</strong>
+              </div>
+
+              <div class="logs-panel logs-panel--workspace">
+                <span>{{ text.serviceLogs }}</span>
+                <pre>{{ activeLogInstance.logLines.join('\n') || text.serviceNoLogs }}</pre>
+              </div>
+            </template>
+
+            <template v-else>
+              <p class="muted">{{ text.logsWorkspaceSelectHint }}</p>
+            </template>
+          </div>
+        </div>
+      </template>
     </section>
   </main>
 </template>

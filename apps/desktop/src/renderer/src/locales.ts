@@ -43,8 +43,13 @@ interface LocaleMessages {
   serviceRestart: string
   serviceStop: string
   serviceStatus: string
+  servicePort: string
+  servicePortReachable: string
   servicePid: string
   serviceBuildTool: string
+  serviceCpu: string
+  serviceMemory: string
+  serviceLogFile: string
   serviceLogs: string
   serviceIdle: string
   serviceBuilding: string
@@ -53,6 +58,11 @@ interface LocaleMessages {
   serviceFailed: string
   serviceNoLogs: string
   servicePreparing: string
+  logsWorkspaceTitle: string
+  logsWorkspaceEmpty: string
+  logsWorkspaceSelectHint: string
+  openPort: string
+  closedPort: string
   runtimeDetectFirst: string
   startupClassCountSuffix: string
   noStartupClassDetected: string
@@ -107,8 +117,13 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceRestart: '重启服务',
     serviceStop: '停止服务',
     serviceStatus: '状态',
+    servicePort: '端口',
+    servicePortReachable: '端口连通',
     servicePid: 'PID',
     serviceBuildTool: '构建器',
+    serviceCpu: 'CPU',
+    serviceMemory: '内存',
+    serviceLogFile: '日志文件',
     serviceLogs: '最近日志',
     serviceIdle: '空闲',
     serviceBuilding: '构建中',
@@ -117,6 +132,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceFailed: '失败',
     serviceNoLogs: '当前还没有日志输出。',
     servicePreparing: '处理中...',
+    logsWorkspaceTitle: '日志工作台',
+    logsWorkspaceEmpty: '当前还没有可查看日志的服务。',
+    logsWorkspaceSelectHint: '请选择一个服务查看更完整的实时日志。',
+    openPort: '已连通',
+    closedPort: '未连通',
     runtimeDetectFirst: '请先完成项目扫描，再进行环境探测。',
     startupClassCountSuffix: '个启动类',
     noStartupClassDetected: '当前模块还没有识别到 Spring Boot 启动类。',
@@ -167,8 +187,13 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceRestart: 'Restart Service',
     serviceStop: 'Stop Service',
     serviceStatus: 'Status',
+    servicePort: 'Port',
+    servicePortReachable: 'Port Reachability',
     servicePid: 'PID',
     serviceBuildTool: 'Build Tool',
+    serviceCpu: 'CPU',
+    serviceMemory: 'Memory',
+    serviceLogFile: 'Log File',
     serviceLogs: 'Recent Logs',
     serviceIdle: 'Idle',
     serviceBuilding: 'Building',
@@ -177,6 +202,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceFailed: 'Failed',
     serviceNoLogs: 'No logs yet.',
     servicePreparing: 'Working...',
+    logsWorkspaceTitle: 'Log Workspace',
+    logsWorkspaceEmpty: 'No service logs are available yet.',
+    logsWorkspaceSelectHint: 'Select a service to inspect its live log stream.',
+    openPort: 'Reachable',
+    closedPort: 'Unreachable',
     runtimeDetectFirst: 'Please scan a project before runtime detection.',
     startupClassCountSuffix: 'startup class(es)',
     noStartupClassDetected: 'No Spring Boot startup class detected in this module yet.',

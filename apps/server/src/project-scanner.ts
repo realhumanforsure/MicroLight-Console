@@ -67,9 +67,10 @@ async function scanModule(modulePath: string): Promise<ScannedModule> {
   }
 
   const javaSourcePath = path.join(modulePath, 'src', 'main', 'java')
+  const defaultPort = await resolveDefaultPort(modulePath)
   const javaFiles = await collectJavaFiles(javaSourcePath)
   const serviceCandidates = await Promise.all(
-    javaFiles.map((javaFilePath) => parseServiceCandidate(javaFilePath, modulePath))
+    javaFiles.map((javaFilePath) => parseServiceCandidate(javaFilePath, modulePath, defaultPort))
   )
 
   return {
@@ -120,7 +121,8 @@ async function collectJavaFiles(rootPath: string): Promise<string[]> {
 
 async function parseServiceCandidate(
   javaFilePath: string,
-  modulePath: string
+  modulePath: string,
+  defaultPort: number | null
 ): Promise<ServiceCandidate | null> {
   const source = await fs.readFile(javaFilePath, 'utf8')
 
@@ -142,8 +144,50 @@ async function parseServiceCandidate(
     packageName,
     mainClass: packageName ? `${packageName}.${className}` : className,
     javaFilePath,
-    modulePath
+    modulePath,
+    defaultPort
   }
+}
+
+async function resolveDefaultPort(modulePath: string) {
+  const resourcesPath = path.join(modulePath, 'src', 'main', 'resources')
+  const candidateFiles = [
+    path.join(resourcesPath, 'application.properties'),
+    path.join(resourcesPath, 'application.yml'),
+    path.join(resourcesPath, 'application.yaml')
+  ]
+
+  for (const candidatePath of candidateFiles) {
+    try {
+      const content = await fs.readFile(candidatePath, 'utf8')
+      const detectedPort = extractPort(content, path.extname(candidatePath))
+
+      if (detectedPort !== null) {
+        return detectedPort
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+    }
+  }
+
+  return 8080
+}
+
+function extractPort(content: string, extension: string) {
+  if (extension === '.properties') {
+    const match = content.match(/^\s*server\.port\s*=\s*(\d+)\s*$/m)
+    return match ? Number(match[1]) : null
+  }
+
+  const nestedYamlMatch = content.match(/^\s*server\s*:\s*[\r\n]+(?:[ \t]+.*[\r\n]+)*?[ \t]+port\s*:\s*(\d+)\s*$/m)
+  if (nestedYamlMatch) {
+    return Number(nestedYamlMatch[1])
+  }
+
+  const flatYamlMatch = content.match(/^\s*server\.port\s*:\s*(\d+)\s*$/m)
+  return flatYamlMatch ? Number(flatYamlMatch[1]) : null
 }
 
 function normalizeArray(value: string | string[] | undefined): string[] {

@@ -1,7 +1,10 @@
 import { EventEmitter } from 'node:events'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { promises as fs } from 'node:fs'
+import { createWriteStream, promises as fs, type WriteStream } from 'node:fs'
+import net from 'node:net'
+import os from 'node:os'
 import path from 'node:path'
+import pidusage from 'pidusage'
 import type {
   BuildToolKind,
   ServiceInstanceState,
@@ -17,11 +20,19 @@ interface ManagedServiceInstance {
   process: ChildProcessWithoutNullStreams | null
   lastLaunchRequest: ServiceLaunchRequest | null
   stopRequested: boolean
+  logStream: WriteStream | null
 }
 
 class ServiceRuntimeManager {
   private readonly instances = new Map<string, ManagedServiceInstance>()
   private readonly events = new EventEmitter()
+  private readonly metricsTimer: NodeJS.Timeout
+
+  constructor() {
+    this.metricsTimer = setInterval(() => {
+      void this.refreshRuntimeMetrics()
+    }, 2000)
+  }
 
   getInstances() {
     return Array.from(this.instances.values()).map((instance) => instance.state)
@@ -48,12 +59,24 @@ class ServiceRuntimeManager {
       await this.stopService(serviceId)
     }
 
+    if (existing?.logStream) {
+      await closeManagedLogStream(existing)
+    }
+
     const state = existing?.state ?? createInitialState(serviceId, request)
+    const logStream = await createServiceLogStream(serviceId)
+    state.logLines = []
+    state.logFilePath = logStream.logFilePath
+    state.cpuPercent = null
+    state.memoryRssBytes = null
+    state.runtimePort = request.runtimePort
+    state.portReachable = false
     this.instances.set(serviceId, {
       state,
       process: null,
       lastLaunchRequest: request,
-      stopRequested: false
+      stopRequested: false,
+      logStream: logStream.stream
     })
 
     state.status = 'building'
@@ -127,6 +150,7 @@ class ServiceRuntimeManager {
       managed.process = null
       managed.stopRequested = false
       this.appendLog(state, `[runtime] Process exited with code ${code ?? 'null'}`)
+      void closeManagedLogStream(managed)
     })
 
     serviceProcess.on('error', (error) => {
@@ -179,6 +203,9 @@ class ServiceRuntimeManager {
 
     instance.state.status = 'stopped'
     instance.state.pid = null
+    instance.state.cpuPercent = null
+    instance.state.memoryRssBytes = null
+    instance.state.portReachable = false
     instance.state.lastUpdatedAt = new Date().toISOString()
     this.emitState(instance.state)
     return instance.state
@@ -215,6 +242,7 @@ class ServiceRuntimeManager {
     }
 
     state.lastUpdatedAt = new Date().toISOString()
+    this.writeLogFile(state.serviceId, lines)
     this.emitState(state)
   }
 
@@ -227,6 +255,47 @@ class ServiceRuntimeManager {
 
   private getEventName(serviceId: string) {
     return `service:${serviceId}`
+  }
+
+  private writeLogFile(serviceId: string, lines: string[]) {
+    const managed = this.instances.get(serviceId)
+
+    if (!managed?.logStream) {
+      return
+    }
+
+    for (const line of lines) {
+      managed.logStream.write(`${line}\n`)
+    }
+  }
+
+  private async refreshRuntimeMetrics() {
+    const runningInstances = Array.from(this.instances.values()).filter(
+      (instance) => instance.process && instance.state.pid !== null
+    )
+
+    await Promise.all(
+      runningInstances.map(async (instance) => {
+        const pid = instance.state.pid
+
+        if (pid === null) {
+          return
+        }
+
+        try {
+          const usage = await pidusage(pid)
+          instance.state.cpuPercent = usage.cpu
+          instance.state.memoryRssBytes = usage.memory
+        } catch {
+          instance.state.cpuPercent = null
+          instance.state.memoryRssBytes = null
+        }
+
+        instance.state.portReachable = await checkPortReachable(instance.state.runtimePort)
+        instance.state.lastUpdatedAt = new Date().toISOString()
+        this.emitState(instance.state)
+      })
+    )
   }
 }
 
@@ -245,6 +314,11 @@ function createInitialState(serviceId: string, request: ServiceLaunchRequest): S
     startedAt: null,
     lastUpdatedAt: new Date().toISOString(),
     lastExitCode: null,
+    runtimePort: request.runtimePort,
+    portReachable: false,
+    cpuPercent: null,
+    memoryRssBytes: null,
+    logFilePath: null,
     logLines: []
   }
 }
@@ -318,4 +392,59 @@ function delay(ms: number) {
 
 export function createServiceId(artifactId: string, mainClass: string) {
   return `${artifactId}:${mainClass}`
+}
+
+async function createServiceLogStream(serviceId: string) {
+  const logsDirectory = path.join(os.tmpdir(), 'microlight-console', 'logs')
+  await fs.mkdir(logsDirectory, { recursive: true })
+  const safeServiceId = serviceId.replace(/[^\w.-]+/g, '_')
+  const logFilePath = path.join(logsDirectory, `${safeServiceId}-${Date.now()}.log`)
+
+  return {
+    logFilePath,
+    stream: createWriteStream(logFilePath, { flags: 'a' })
+  }
+}
+
+async function closeManagedLogStream(instance: ManagedServiceInstance) {
+  if (!instance.logStream) {
+    return
+  }
+
+  await new Promise<void>((resolve) => {
+    instance.logStream?.end(() => {
+      resolve()
+    })
+  })
+
+  instance.logStream = null
+}
+
+async function checkPortReachable(port: number | null) {
+  if (port === null) {
+    return false
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const socket = new net.Socket()
+
+    socket.setTimeout(800)
+
+    socket.once('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+
+    socket.once('timeout', () => {
+      socket.destroy()
+      resolve(false)
+    })
+
+    socket.once('error', () => {
+      socket.destroy()
+      resolve(false)
+    })
+
+    socket.connect(port, '127.0.0.1')
+  })
 }
