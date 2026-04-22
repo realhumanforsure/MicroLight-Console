@@ -207,6 +207,11 @@ interface LocaleMessages {
   serviceFailureHealthHint: string
   serviceFailurePortClosedDetail: string
   serviceFailureHealthUnknownDetail: string
+  serviceRootCauseTitle: string
+  serviceRootCauseLikely: string
+  serviceRootCauseEmpty: string
+  serviceRootCauseOccurrences: string
+  serviceRootCauseCopy: string
   serviceIdle: string
   serviceBuilding: string
   serviceRunning: string
@@ -482,6 +487,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceFailureHealthHint: '确认服务是否已真正启动成功，以及健康检查路径与端口配置是否正确。',
     serviceFailurePortClosedDetail: '服务端口当前不可达，应用可能未完成启动或已提前退出。',
     serviceFailureHealthUnknownDetail: '健康检查未通过，但当前没有返回更详细的错误信息。',
+    serviceRootCauseTitle: '根因归并',
+    serviceRootCauseLikely: '最可能的根因',
+    serviceRootCauseEmpty: '当前还没有可归并的异常链。',
+    serviceRootCauseOccurrences: '重复出现',
+    serviceRootCauseCopy: '复制根因链',
     serviceIdle: '空闲',
     serviceBuilding: '构建中',
     serviceRunning: '运行中',
@@ -753,6 +763,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceFailureHealthHint: 'Verify the app really started, and confirm the health path and port are configured correctly.',
     serviceFailurePortClosedDetail: 'The service port is currently unreachable. The app may have exited or not finished starting.',
     serviceFailureHealthUnknownDetail: 'Health check failed, but no more detailed error message is available right now.',
+    serviceRootCauseTitle: 'Root Cause Analysis',
+    serviceRootCauseLikely: 'Most Likely Root Cause',
+    serviceRootCauseEmpty: 'No consolidated exception chain is available yet.',
+    serviceRootCauseOccurrences: 'Repeated',
+    serviceRootCauseCopy: 'Copy Root Cause Chain',
     serviceIdle: 'Idle',
     serviceBuilding: 'Building',
     serviceRunning: 'Running',

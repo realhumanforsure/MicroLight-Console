@@ -460,6 +460,56 @@ h1 {
   background: rgba(43, 28, 8, 0.58);
 }
 
+.root-cause-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(147, 184, 255, 0.28);
+  background: rgba(12, 24, 43, 0.8);
+}
+
+.root-cause-card p,
+.root-cause-card span {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.root-cause-card p {
+  color: #dde9fb;
+  word-break: break-word;
+}
+
+.root-cause-card span {
+  color: #9ab2d3;
+}
+
+.root-cause-chain {
+  display: grid;
+  gap: 10px;
+}
+
+.root-cause-chain__item {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid rgba(147, 184, 255, 0.18);
+  background: rgba(7, 16, 31, 0.78);
+  color: #e6f0ff;
+  cursor: pointer;
+}
+
+.root-cause-chain__item span {
+  color: #97abc8;
+}
+
+.root-cause-chain__item.active {
+  border-color: rgba(147, 184, 255, 0.42);
+  background: rgba(19, 36, 63, 0.9);
+}
+
 .log-highlight-list {
   display: grid;
   gap: 10px;

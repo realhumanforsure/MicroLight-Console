@@ -87,6 +87,18 @@ interface FailureSummaryView {
   severity: 'error' | 'warn'
 }
 
+interface RootCauseChainItemView {
+  key: string
+  label: string
+  lineNumber: number
+  occurrences: number
+}
+
+interface RootCauseAnalysisView {
+  rootCause: RootCauseChainItemView | null
+  chainItems: RootCauseChainItemView[]
+}
+
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
@@ -944,6 +956,72 @@ function buildDiagnosticGroups(lineViews: LogLineView[]) {
   })
 }
 
+function isRootCauseChainLine(line: string) {
+  return (
+    /caused by:/i.test(line) ||
+    /([\w.$]+(?:Exception|Error))(?::\s*.+)?/i.test(line) ||
+    /\bapplication run failed\b/i.test(line) ||
+    /\bapplication failed to start\b/i.test(line)
+  )
+}
+
+function buildRootCauseChainLabel(line: string) {
+  const causedByMatch = line.match(/caused by:\s*(.+)/i)
+
+  if (causedByMatch) {
+    return causedByMatch[1].trim()
+  }
+
+  return buildDiagnosticLabel(line)
+}
+
+function buildRootCauseAnalysis(lines: string[], centerLineNumber: number, radius = 40): RootCauseAnalysisView {
+  if (centerLineNumber <= 0 || centerLineNumber > lines.length) {
+    return {
+      rootCause: null,
+      chainItems: []
+    }
+  }
+
+  const startIndex = Math.max(0, centerLineNumber - radius - 1)
+  const endIndex = Math.min(lines.length - 1, centerLineNumber + Math.floor(radius / 2) - 1)
+  const groupMap = new Map<string, RootCauseChainItemView>()
+  const orderedKeys: string[] = []
+
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const line = lines[index]
+
+    if (!isRootCauseChainLine(line)) {
+      continue
+    }
+
+    const key = normalizeDiagnosticSignature(line)
+    const existingItem = groupMap.get(key)
+
+    if (!existingItem) {
+      orderedKeys.push(key)
+      groupMap.set(key, {
+        key,
+        label: buildRootCauseChainLabel(line),
+        lineNumber: index + 1,
+        occurrences: 1
+      })
+      continue
+    }
+
+    existingItem.occurrences += 1
+    existingItem.lineNumber = index + 1
+  }
+
+  const chainItems = orderedKeys.map((key) => groupMap.get(key)).filter((item): item is RootCauseChainItemView => Boolean(item))
+  const rootCause = chainItems.at(-1) ?? null
+
+  return {
+    rootCause,
+    chainItems
+  }
+}
+
 function findLogLineByPatterns(lineViews: LogLineView[], patterns: RegExp[]) {
   return lineViews.find((lineView) => patterns.some((pattern) => pattern.test(lineView.text)))
 }
@@ -1305,6 +1383,32 @@ async function exportDiagnosticBundle(
   }
 }
 
+async function copyRootCauseAnalysis(title: string, analysis: RootCauseAnalysisView) {
+  try {
+    runtimeErrorMessage.value = ''
+
+    if (analysis.chainItems.length === 0) {
+      logWorkspaceMessage.value = text.value.serviceRootCauseEmpty
+      return
+    }
+
+    const content = [
+      title,
+      `generatedAt=${new Date().toISOString()}`,
+      '',
+      ...analysis.chainItems.map((item, index) => {
+        const suffix = item.occurrences > 1 ? ` (${text.value.serviceRootCauseOccurrences}: ${item.occurrences})` : ''
+        return `${index + 1}. ${item.label}${suffix} [${text.value.serviceLogLinePrefix} ${item.lineNumber}]`
+      })
+    ].join('\n')
+
+    await window.microlight.copyText(content)
+    logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
+  }
+}
+
 async function focusLiveDiagnostic(lineNumber: number) {
   liveLogFollowEnabled.value = false
   selectedLiveDiagnosticLineNumber.value = lineNumber
@@ -1378,6 +1482,14 @@ async function exportHistoryDiagnosticBundle() {
     historyDiagnosticGroups.value,
     activeLogHistory.value?.lines ?? []
   )
+}
+
+async function copyLiveRootCauseAnalysis() {
+  await copyRootCauseAnalysis(text.value.serviceRootCauseTitle, liveRootCauseAnalysis.value)
+}
+
+async function copyHistoryRootCauseAnalysis() {
+  await copyRootCauseAnalysis(text.value.serviceRootCauseTitle, historyRootCauseAnalysis.value)
 }
 
 function createServiceLaunchRequest(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
@@ -1930,6 +2042,14 @@ const historyFailureSummaryViews = computed(() =>
     healthDetail: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.healthDetail ?? null : null,
     portReachable: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.portReachable ?? null : null
   })
+)
+
+const liveRootCauseAnalysis = computed(() =>
+  buildRootCauseAnalysis(activeLogInstance.value?.logLines ?? [], selectedLiveDiagnosticLineView.value?.lineNumber ?? 0)
+)
+
+const historyRootCauseAnalysis = computed(() =>
+  buildRootCauseAnalysis(activeLogHistory.value?.lines ?? [], selectedHistoryDiagnosticLineView.value?.lineNumber ?? 0)
 )
 
 const selectedLiveDiagnosticLineView = computed(
@@ -3148,6 +3268,49 @@ const closeActionOptions = computed(() => [
 
               <div class="log-summary-panel">
                 <div class="project-panel__subheader">
+                  <h3>{{ text.serviceRootCauseTitle }}</h3>
+                  <div class="log-toolbar__actions">
+                    <button
+                      class="secondary-button log-toolbar__button"
+                      type="button"
+                      :disabled="liveRootCauseAnalysis.chainItems.length === 0"
+                      @click="copyLiveRootCauseAnalysis"
+                    >
+                      {{ text.serviceRootCauseCopy }}
+                    </button>
+                  </div>
+                </div>
+
+                <template v-if="liveRootCauseAnalysis.rootCause">
+                  <div class="root-cause-card">
+                    <strong>{{ text.serviceRootCauseLikely }}</strong>
+                    <p>{{ liveRootCauseAnalysis.rootCause.label }}</p>
+                    <span>{{ text.serviceLogLinePrefix }} {{ liveRootCauseAnalysis.rootCause.lineNumber }}</span>
+                  </div>
+                  <div class="root-cause-chain">
+                    <button
+                      v-for="item in liveRootCauseAnalysis.chainItems"
+                      :key="`live-root-${item.key}-${item.lineNumber}`"
+                      class="root-cause-chain__item"
+                      :class="{ active: selectedLiveDiagnosticLineNumber === item.lineNumber }"
+                      type="button"
+                      @click="focusLiveDiagnostic(item.lineNumber)"
+                    >
+                      <strong>{{ item.label }}</strong>
+                      <span>{{ text.serviceLogLinePrefix }} {{ item.lineNumber }}</span>
+                      <span v-if="item.occurrences > 1">
+                        {{ text.serviceRootCauseOccurrences }}: {{ item.occurrences }}
+                      </span>
+                    </button>
+                  </div>
+                </template>
+                <template v-else>
+                  <p class="muted">{{ text.serviceRootCauseEmpty }}</p>
+                </template>
+              </div>
+
+              <div class="log-summary-panel">
+                <div class="project-panel__subheader">
                   <h3>{{ text.serviceLogHighlightsTitle }}</h3>
                   <div class="log-toolbar__actions">
                     <button
@@ -3433,6 +3596,49 @@ const closeActionOptions = computed(() => [
                                 <span>{{ summary.hint }}</span>
                               </article>
                             </div>
+                          </template>
+                        </div>
+
+                        <div class="log-summary-panel">
+                          <div class="project-panel__subheader">
+                            <h3>{{ text.serviceRootCauseTitle }}</h3>
+                            <div class="log-toolbar__actions">
+                              <button
+                                class="secondary-button log-toolbar__button"
+                                type="button"
+                                :disabled="historyRootCauseAnalysis.chainItems.length === 0"
+                                @click="copyHistoryRootCauseAnalysis"
+                              >
+                                {{ text.serviceRootCauseCopy }}
+                              </button>
+                            </div>
+                          </div>
+
+                          <template v-if="historyRootCauseAnalysis.rootCause">
+                            <div class="root-cause-card">
+                              <strong>{{ text.serviceRootCauseLikely }}</strong>
+                              <p>{{ historyRootCauseAnalysis.rootCause.label }}</p>
+                              <span>{{ text.serviceLogLinePrefix }} {{ historyRootCauseAnalysis.rootCause.lineNumber }}</span>
+                            </div>
+                            <div class="root-cause-chain">
+                              <button
+                                v-for="item in historyRootCauseAnalysis.chainItems"
+                                :key="`history-root-${item.key}-${item.lineNumber}`"
+                                class="root-cause-chain__item"
+                                :class="{ active: selectedHistoryDiagnosticLineNumber === item.lineNumber }"
+                                type="button"
+                                @click="focusHistoryDiagnostic(item.lineNumber)"
+                              >
+                                <strong>{{ item.label }}</strong>
+                                <span>{{ text.serviceLogLinePrefix }} {{ item.lineNumber }}</span>
+                                <span v-if="item.occurrences > 1">
+                                  {{ text.serviceRootCauseOccurrences }}: {{ item.occurrences }}
+                                </span>
+                              </button>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <p class="muted">{{ text.serviceRootCauseEmpty }}</p>
                           </template>
                         </div>
 
