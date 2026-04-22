@@ -163,6 +163,11 @@ const serviceGroupActionRunning = ref(false)
 const serviceGroupStartupIntervalSeconds = ref('5')
 const liveLogPanelRef = ref<HTMLElement | null>(null)
 const historyLogPanelRef = ref<HTMLElement | null>(null)
+const servicesWorkspaceRef = ref<HTMLElement | null>(null)
+const logsWorkspaceRef = ref<HTMLElement | null>(null)
+const checksWorkspaceRef = ref<HTMLElement | null>(null)
+const settingsWorkspaceRef = ref<HTMLElement | null>(null)
+const releaseWorkspaceRef = ref<HTMLElement | null>(null)
 const selectedLiveDiagnosticLineNumber = ref<number | null>(null)
 const selectedHistoryDiagnosticLineNumber = ref<number | null>(null)
 const text = computed(() => messages[locale.value])
@@ -171,6 +176,7 @@ let refreshTimer: number | null = null
 
 onMounted(() => {
   void initializeApp()
+  void resetWorkspaceScroll()
   refreshTimer = window.setInterval(() => {
     void refreshInstances()
   }, 3000)
@@ -191,6 +197,10 @@ onBeforeUnmount(() => {
 
 watchEffect(() => {
   document.title = text.value.appTitle
+})
+
+watch(activeWorkspaceTab, () => {
+  void resetWorkspaceScroll()
 })
 
 watch(
@@ -221,6 +231,7 @@ watch(projectScan, (scanResult) => {
     serviceLaunchConfigs.value = {}
     savedServiceGroups.value = []
     activeScannedServiceId.value = ''
+    void resetWorkspaceScroll('services')
     return
   }
 
@@ -238,6 +249,7 @@ watch(projectScan, (scanResult) => {
     ? scanResult.savedLastSelectedServiceId
     : Object.keys(nextConfigs)[0] ?? ''
   selectedLogServiceId.value = scanResult.savedLastSelectedServiceId ?? selectedLogServiceId.value
+  void resetWorkspaceScroll('services')
 })
 
 watch(selectedLogServiceId, (serviceId) => {
@@ -591,6 +603,45 @@ function switchWorkspaceTab(tab: WorkspaceTab) {
   if (tab === 'logs' && activeScannedServiceId.value && serviceInstances.value[activeScannedServiceId.value]) {
     selectedLogServiceId.value = activeScannedServiceId.value
   }
+}
+
+function getWorkspacePanelElement(tab: WorkspaceTab) {
+  switch (tab) {
+    case 'services':
+      return servicesWorkspaceRef.value
+    case 'logs':
+      return logsWorkspaceRef.value
+    case 'checks':
+      return checksWorkspaceRef.value
+    case 'settings':
+      return settingsWorkspaceRef.value
+    case 'release':
+      return releaseWorkspaceRef.value
+    default:
+      return null
+  }
+}
+
+async function resetWorkspaceScroll(tab: WorkspaceTab = activeWorkspaceTab.value) {
+  await nextTick()
+  const panel = getWorkspacePanelElement(tab)
+
+  if (!panel) {
+    return
+  }
+
+  panel.scrollTop = 0
+  panel.scrollLeft = 0
+
+  console.info('[workspace-scroll-reset]', {
+    tab,
+    scrollTop: panel.scrollTop,
+    scrollLeft: panel.scrollLeft,
+    clientHeight: panel.clientHeight,
+    scrollHeight: panel.scrollHeight,
+    clientWidth: panel.clientWidth,
+    scrollWidth: panel.scrollWidth
+  })
 }
 
 function selectScannedService(serviceId: string) {
@@ -2700,6 +2751,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'settings'"
+      ref="settingsWorkspaceRef"
       class="project-panel workspace-view workspace-scroll-hidden settings-panel"
     >
       <div class="settings-shell">
@@ -2907,6 +2959,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'checks'"
+      ref="checksWorkspaceRef"
       class="project-panel workspace-view workspace-document workspace-scroll-hidden checks-panel"
     >
       <article class="document-section">
@@ -3117,6 +3170,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'release'"
+      ref="releaseWorkspaceRef"
       class="project-panel workspace-view workspace-scroll-hidden release-panel"
     >
       <div class="project-panel__header">
@@ -3199,6 +3253,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'services'"
+      ref="servicesWorkspaceRef"
       class="project-panel project-panel--workspace workspace-view workspace-scroll-hidden"
     >
       <div class="service-toolbar">
@@ -3653,6 +3708,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'logs'"
+      ref="logsWorkspaceRef"
       class="project-panel workspace-view workspace-scroll-hidden"
     >
       <div class="project-panel__subheader">

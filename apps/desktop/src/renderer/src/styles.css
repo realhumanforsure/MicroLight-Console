@@ -215,7 +215,8 @@ select {
   display: grid;
   gap: 8px;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   align-content: start;
   padding-right: 4px;
 }
@@ -388,7 +389,9 @@ select {
 
 .workspace-view {
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 .workspace-scroll-hidden::-webkit-scrollbar,
