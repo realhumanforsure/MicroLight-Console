@@ -1,6 +1,7 @@
 import type {
   ServiceGroupInstance,
   ServiceGroupItemState,
+  ServiceGroupStatus,
   ServiceGroupLaunchRequest
 } from '@microlight/shared'
 import { createServiceId, serviceRuntimeManager } from './service-runtime.js'
@@ -27,6 +28,7 @@ class ServiceGroupRuntimeManager {
       startedAt: now,
       completedAt: null,
       lastUpdatedAt: now,
+      durationMs: null,
       services: request.services.map(createGroupItem)
     }
 
@@ -37,6 +39,7 @@ class ServiceGroupRuntimeManager {
     for (const [index, serviceRequest] of orderedServices.entries()) {
       const serviceId = createServiceId(serviceRequest.artifactId, serviceRequest.mainClass)
       const item = findGroupItem(group, serviceId)
+      item.orderIndex = index + 1
       const failedDependency = item.dependsOnServiceIds
         .map((dependencyServiceId) => findGroupItem(group, dependencyServiceId))
         .find((dependency) => dependency.status !== 'completed')
@@ -44,12 +47,12 @@ class ServiceGroupRuntimeManager {
       if (failedDependency) {
         item.status = 'failed'
         item.message = `Dependency ${failedDependency.serviceId} did not start successfully`
+        item.blockedByServiceId = failedDependency.serviceId
+        markItemFinished(item)
         touchGroup(group)
 
         if (request.stopOnFailure) {
-          group.status = 'failed'
-          group.completedAt = new Date().toISOString()
-          touchGroup(group)
+          finishGroup(group, 'failed')
           return group
         }
 
@@ -58,6 +61,7 @@ class ServiceGroupRuntimeManager {
 
       item.status = 'running'
       item.message = 'Starting service'
+      markItemStarted(item)
       touchGroup(group)
 
       try {
@@ -65,6 +69,7 @@ class ServiceGroupRuntimeManager {
         item.status = 'completed'
         item.message = 'Service started'
         item.instance = instance
+        markItemFinished(item)
         touchGroup(group)
 
         if (index < orderedServices.length - 1) {
@@ -73,20 +78,17 @@ class ServiceGroupRuntimeManager {
       } catch (error) {
         item.status = 'failed'
         item.message = error instanceof Error ? error.message : 'Service launch failed'
+        markItemFinished(item)
         touchGroup(group)
 
         if (request.stopOnFailure) {
-          group.status = 'failed'
-          group.completedAt = new Date().toISOString()
-          touchGroup(group)
+          finishGroup(group, 'failed')
           return group
         }
       }
     }
 
-    group.status = group.services.some((service) => service.status === 'failed') ? 'failed' : 'completed'
-    group.completedAt = new Date().toISOString()
-    touchGroup(group)
+    finishGroup(group, group.services.some((service) => service.status === 'failed') ? 'failed' : 'completed')
     return group
   }
 
@@ -110,17 +112,17 @@ class ServiceGroupRuntimeManager {
         item.status = 'stopped'
         item.message = 'Service stopped'
         item.instance = instance
+        markItemStopped(item)
       } catch (error) {
         item.status = 'failed'
         item.message = error instanceof Error ? error.message : 'Service stop failed'
+        markItemStopped(item)
       }
 
       touchGroup(group)
     }
 
-    group.status = group.services.some((service) => service.status === 'failed') ? 'failed' : 'stopped'
-    group.completedAt = new Date().toISOString()
-    touchGroup(group)
+    finishGroup(group, group.services.some((service) => service.status === 'failed') ? 'failed' : 'stopped')
     return group
   }
 }
@@ -133,9 +135,14 @@ function createGroupItem(
     artifactId: serviceRequest.artifactId,
     mainClass: serviceRequest.mainClass,
     dependsOnServiceIds: serviceRequest.dependsOnServiceIds ?? [],
+    orderIndex: 0,
     status: 'pending',
     message: null,
-    instance: null
+    instance: null,
+    startedAt: null,
+    completedAt: null,
+    durationMs: null,
+    blockedByServiceId: null
   }
 }
 
@@ -196,6 +203,35 @@ export function resolveServiceGroupLaunchOrder(services: ServiceGroupLaunchReque
 
 function touchGroup(group: ServiceGroupInstance) {
   group.lastUpdatedAt = new Date().toISOString()
+}
+
+function markItemStarted(item: ServiceGroupItemState) {
+  const now = new Date().toISOString()
+
+  item.startedAt = now
+  item.completedAt = null
+  item.durationMs = null
+  item.blockedByServiceId = null
+}
+
+function markItemFinished(item: ServiceGroupItemState) {
+  const now = new Date().toISOString()
+
+  item.completedAt = now
+  item.durationMs = item.startedAt ? Math.max(0, Date.parse(now) - Date.parse(item.startedAt)) : 0
+}
+
+function markItemStopped(item: ServiceGroupItemState) {
+  item.completedAt = new Date().toISOString()
+}
+
+function finishGroup(group: ServiceGroupInstance, status: ServiceGroupStatus) {
+  const now = new Date().toISOString()
+
+  group.status = status
+  group.completedAt = now
+  group.durationMs = Math.max(0, Date.parse(now) - Date.parse(group.startedAt))
+  touchGroup(group)
 }
 
 function normalizeStartupInterval(value: number) {

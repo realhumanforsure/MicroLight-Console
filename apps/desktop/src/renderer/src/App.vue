@@ -806,6 +806,26 @@ function formatPort(port: number | null) {
   return port === null ? text.value.runtimePending : String(port)
 }
 
+function formatDuration(durationMs: number | null) {
+  if (durationMs === null) {
+    return text.value.runtimePending
+  }
+
+  if (durationMs < 1000) {
+    return `${durationMs} ms`
+  }
+
+  return `${(durationMs / 1000).toFixed(1)} s`
+}
+
+function formatTimestamp(timestamp: string | null) {
+  if (!timestamp) {
+    return text.value.runtimePending
+  }
+
+  return new Date(timestamp).toLocaleString()
+}
+
 function formatFileSize(sizeBytes: number) {
   if (sizeBytes < 1024) {
     return `${sizeBytes} B`
@@ -2424,6 +2444,14 @@ const scannedServiceCount = computed(() => {
 })
 
 const lastServiceGroup = computed(() => serviceGroups.value[0] ?? null)
+const lastServiceGroupServices = computed(() =>
+  lastServiceGroup.value
+    ? [...lastServiceGroup.value.services].sort((left, right) => left.orderIndex - right.orderIndex)
+    : []
+)
+const lastServiceGroupFailedServices = computed(() =>
+  lastServiceGroupServices.value.filter((service) => service.status === 'failed')
+)
 const runtimeTools = computed(() =>
   runtimeDetection.value
     ? [
@@ -2972,22 +3000,57 @@ const closeActionOptions = computed(() => [
             {{ text.serviceGroupServiceCount }}: {{ lastServiceGroup.services.length }}
           </div>
           <div class="pill ghost">
-            {{ text.serviceGroupUpdatedAt }}: {{ lastServiceGroup.lastUpdatedAt }}
+            {{ text.serviceGroupDuration }}: {{ formatDuration(lastServiceGroup.durationMs) }}
           </div>
+          <div class="pill ghost">
+            {{ text.serviceGroupUpdatedAt }}: {{ formatTimestamp(lastServiceGroup.lastUpdatedAt) }}
+          </div>
+        </div>
+
+        <div class="service-group-runtime-grid">
+          <article>
+            <span>{{ text.serviceGroupStartedAt }}</span>
+            <strong>{{ formatTimestamp(lastServiceGroup.startedAt) }}</strong>
+          </article>
+          <article>
+            <span>{{ text.serviceGroupCompletedAt }}</span>
+            <strong>{{ formatTimestamp(lastServiceGroup.completedAt) }}</strong>
+          </article>
+          <article>
+            <span>{{ text.serviceGroupFailedNode }}</span>
+            <strong>
+              {{
+                lastServiceGroupFailedServices.length > 0
+                  ? lastServiceGroupFailedServices.map((service) => service.artifactId).join(', ')
+                  : text.serviceGroupNoFailure
+              }}
+            </strong>
+          </article>
         </div>
 
         <div class="service-group-list">
           <article
-            v-for="service in lastServiceGroup.services"
+            v-for="service in lastServiceGroupServices"
             :key="service.serviceId"
             class="service-group-item"
+            :class="{ 'service-group-item--failed': service.status === 'failed' }"
           >
-            <strong>{{ service.artifactId }}</strong>
-            <span>{{ service.mainClass }}</span>
-            <em>
-              {{ getServiceGroupItemStatusLabel(service.status) }}
-              {{ service.status === 'failed' && service.message ? ` · ${service.message}` : '' }}
-            </em>
+            <div class="service-group-item__rank">
+              <span>{{ text.serviceGroupLaunchOrder }}</span>
+              <strong>#{{ service.orderIndex || '-' }}</strong>
+            </div>
+            <div>
+              <strong>{{ service.artifactId }}</strong>
+              <span>{{ service.mainClass }}</span>
+            </div>
+            <div class="service-group-item__metrics">
+              <span>{{ getServiceGroupItemStatusLabel(service.status) }}</span>
+              <span>{{ text.serviceGroupDuration }}: {{ formatDuration(service.durationMs) }}</span>
+              <span v-if="service.blockedByServiceId">
+                {{ text.serviceGroupBlockedBy }}: {{ service.blockedByServiceId }}
+              </span>
+              <em v-if="service.message">{{ service.message }}</em>
+            </div>
           </article>
         </div>
       </div>

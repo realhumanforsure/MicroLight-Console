@@ -264,6 +264,13 @@ interface LocaleMessages {
   serviceGroupName: string
   serviceGroupServiceCount: string
   serviceGroupUpdatedAt: string
+  serviceGroupDuration: string
+  serviceGroupFailedNode: string
+  serviceGroupLaunchOrder: string
+  serviceGroupStartedAt: string
+  serviceGroupCompletedAt: string
+  serviceGroupBlockedBy: string
+  serviceGroupNoFailure: string
   serviceGroupRunning: string
   serviceGroupItemPending: string
   serviceGroupCompleted: string
@@ -573,6 +580,13 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceGroupName: '服务组',
     serviceGroupServiceCount: '服务数',
     serviceGroupUpdatedAt: '更新时间',
+    serviceGroupDuration: '启动耗时',
+    serviceGroupFailedNode: '失败节点',
+    serviceGroupLaunchOrder: '启动顺序',
+    serviceGroupStartedAt: '开始时间',
+    serviceGroupCompletedAt: '结束时间',
+    serviceGroupBlockedBy: '阻塞依赖',
+    serviceGroupNoFailure: '无失败节点',
     serviceGroupRunning: '运行中',
     serviceGroupItemPending: '等待中',
     serviceGroupCompleted: '已完成',
@@ -878,6 +892,13 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceGroupName: 'Group',
     serviceGroupServiceCount: 'Services',
     serviceGroupUpdatedAt: 'Updated At',
+    serviceGroupDuration: 'Startup Duration',
+    serviceGroupFailedNode: 'Failed Node',
+    serviceGroupLaunchOrder: 'Launch Order',
+    serviceGroupStartedAt: 'Started At',
+    serviceGroupCompletedAt: 'Completed At',
+    serviceGroupBlockedBy: 'Blocked By',
+    serviceGroupNoFailure: 'No Failed Nodes',
     serviceGroupRunning: 'Running',
     serviceGroupItemPending: 'Pending',
     serviceGroupCompleted: 'Completed',

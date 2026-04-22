@@ -266,9 +266,14 @@ export interface ServiceGroupItemState {
   artifactId: string
   mainClass: string
   dependsOnServiceIds: string[]
+  orderIndex: number
   status: ServiceGroupItemStatus
   message: string | null
   instance: ServiceInstanceState | null
+  startedAt: string | null
+  completedAt: string | null
+  durationMs: number | null
+  blockedByServiceId: string | null
 }
 
 export interface ServiceGroupInstance {
@@ -280,6 +285,7 @@ export interface ServiceGroupInstance {
   startedAt: string
   completedAt: string | null
   lastUpdatedAt: string
+  durationMs: number | null
   services: ServiceGroupItemState[]
 }
 
