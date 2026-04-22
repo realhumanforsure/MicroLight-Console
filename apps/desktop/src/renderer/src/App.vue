@@ -61,6 +61,21 @@ interface ServiceLaunchConfig {
 type WorkspaceTab = 'services' | 'logs' | 'checks' | 'settings' | 'release'
 type LogLevelFilter = 'all' | 'info' | 'warn' | 'error' | 'debug'
 type RenderedLogLevel = 'default' | 'info' | 'warn' | 'error' | 'debug'
+type LogColorToken =
+  | 'timestamp'
+  | 'level'
+  | 'thread'
+  | 'logger'
+  | 'exception'
+  | 'success'
+  | 'number'
+  | 'plain'
+
+interface LogColorRule {
+  id: string
+  token: LogColorToken
+  pattern: RegExp
+}
 
 interface ScannedServiceView {
   serviceId: string
@@ -72,8 +87,16 @@ interface ScannedServiceView {
 interface LogLineView {
   lineNumber: number
   text: string
+  displayText: string
   level: RenderedLogLevel
   isDiagnostic: boolean
+  segments: LogLineSegmentView[]
+}
+
+interface LogLineSegmentView {
+  key: string
+  text: string
+  token: LogColorToken
 }
 
 interface LogContextView {
@@ -1030,6 +1053,126 @@ function toSafeFileName(value: string) {
   return value.replace(/[<>:"/\\|?*]+/g, '-').replace(/\s+/g, '-')
 }
 
+const fixedLogColorRules: LogColorRule[] = [
+  {
+    id: 'timestamp',
+    token: 'timestamp',
+    pattern: /\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d{3,})?/g
+  },
+  {
+    id: 'level',
+    token: 'level',
+    pattern: /\b(?:TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL)\b/g
+  },
+  {
+    id: 'thread',
+    token: 'thread',
+    pattern: /\[[^\]]+\]/g
+  },
+  {
+    id: 'logger',
+    token: 'logger',
+    pattern: /\b(?:[a-zA-Z_$][\w$]*\.){2,}[A-Za-z_$][\w$]*\b/g
+  },
+  {
+    id: 'exception',
+    token: 'exception',
+    pattern: /\b[\w.$]*(?:Exception|Error)\b|Caused by:/g
+  },
+  {
+    id: 'success',
+    token: 'success',
+    pattern: /\b(?:Started|Tomcat started|Completed initialization|BUILD SUCCESS|运行中|已连通)\b/g
+  },
+  {
+    id: 'number',
+    token: 'number',
+    pattern: /\b\d+(?:\.\d+)?(?:ms|s|MB|KB|B)?\b/g
+  }
+]
+
+function stripAnsiControlCodes(value: string) {
+  return value.replace(/\x1B\[[0-9;]*m/g, '')
+}
+
+function buildLogLineSegments(line: string): { displayText: string; segments: LogLineSegmentView[] } {
+  const displayText = stripAnsiControlCodes(line)
+  const matches: Array<{ start: number; end: number; token: LogColorToken }> = []
+
+  for (const rule of fixedLogColorRules) {
+    const pattern = new RegExp(rule.pattern.source, rule.pattern.flags.includes('g') ? rule.pattern.flags : `${rule.pattern.flags}g`)
+    let match: RegExpExecArray | null
+
+    while ((match = pattern.exec(displayText)) !== null) {
+      const [matchedText] = match
+
+      if (!matchedText) {
+        continue
+      }
+
+      matches.push({
+        start: match.index,
+        end: match.index + matchedText.length,
+        token: rule.token
+      })
+    }
+  }
+
+  matches.sort((left, right) => {
+    if (left.start !== right.start) {
+      return left.start - right.start
+    }
+
+    return right.end - left.end
+  })
+
+  const segments: LogLineSegmentView[] = []
+  let cursor = 0
+
+  for (const match of matches) {
+    if (match.start < cursor) {
+      continue
+    }
+
+    if (match.start > cursor) {
+      segments.push({
+        key: `${segments.length}-plain-${cursor}`,
+        text: displayText.slice(cursor, match.start),
+        token: 'plain'
+      })
+    }
+
+    segments.push({
+      key: `${segments.length}-${match.token}-${match.start}`,
+      text: displayText.slice(match.start, match.end),
+      token: match.token
+    })
+    cursor = match.end
+  }
+
+  if (cursor < displayText.length) {
+    segments.push({
+      key: `${segments.length}-plain-${cursor}`,
+      text: displayText.slice(cursor),
+      token: 'plain'
+    })
+  }
+
+  return {
+    displayText,
+    segments:
+      segments.length > 0
+        ? segments
+        : [
+            {
+              key: 'plain-0',
+              text: displayText,
+              token: 'plain'
+            } satisfies LogLineSegmentView
+          ]
+  }
+}
+
 function getRenderedLogLevel(line: string): RenderedLogLevel {
   if (/\berror\b/i.test(line) || /\bexception\b/i.test(line) || /\bcaused by\b/i.test(line)) {
     return 'error'
@@ -1113,15 +1256,23 @@ function buildLogLineViews(lines: string[], keyword: string, level: LogLevelFilt
       return []
     }
 
+    const renderedLine = buildLogLineSegments(line)
+
     return [
       {
         lineNumber: index + 1,
         text: line,
+        displayText: renderedLine.displayText,
         level: getRenderedLogLevel(line),
-        isDiagnostic: isDiagnosticLogLine(line)
+        isDiagnostic: isDiagnosticLogLine(line),
+        segments: renderedLine.segments
       } satisfies LogLineView
     ]
   })
+}
+
+function buildUnfilteredLogLineViews(lines: string[]) {
+  return buildLogLineViews(lines, '', 'all')
 }
 
 function buildContextLineViews(lines: string[], centerLineNumber: number, radius = 3): LogContextView | null {
@@ -1133,12 +1284,15 @@ function buildContextLineViews(lines: string[], centerLineNumber: number, radius
   const endIndex = Math.min(lines.length - 1, centerLineNumber + radius - 1)
   const contextLines = lines.slice(startIndex, endIndex + 1).map((line, index) => {
     const lineNumber = startIndex + index + 1
+    const renderedLine = buildLogLineSegments(line)
 
     return {
       lineNumber,
       text: line,
+      displayText: renderedLine.displayText,
       level: getRenderedLogLevel(line),
-      isDiagnostic: isDiagnosticLogLine(line)
+      isDiagnostic: isDiagnosticLogLine(line),
+      segments: renderedLine.segments
     } satisfies LogLineView
   })
 
@@ -3835,12 +3989,42 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                         </button>
                       </div>
                     </div>
-                    <pre
+                    <div
                       :ref="setEmbeddedLogPanelRef(getServiceId(module.artifactId, candidate.mainClass))"
-                    >{{
-                      serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].logLines.join('\n') ||
-                      text.serviceNoLogs
-                    }}</pre>
+                      class="logs-panel__content logs-panel__content--resizable"
+                    >
+                      <template
+                        v-for="line in buildUnfilteredLogLineViews(
+                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].logLines
+                        )"
+                        :key="`embedded-${getServiceId(module.artifactId, candidate.mainClass)}-${line.lineNumber}`"
+                      >
+                        <div
+                          class="log-line"
+                          :class="[
+                            `log-line--${line.level}`,
+                            {
+                              'log-line--diagnostic': line.isDiagnostic
+                            }
+                          ]"
+                        >
+                          <span class="log-line__number">{{ line.lineNumber }}</span>
+                          <span class="log-line__text">
+                            <span
+                              v-for="segment in line.segments"
+                              :key="segment.key"
+                              :class="`log-token log-token--${segment.token}`"
+                            >{{ segment.text }}</span>
+                          </span>
+                        </div>
+                      </template>
+                      <p
+                        v-if="serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].logLines.length === 0"
+                        class="muted"
+                      >
+                        {{ text.serviceNoLogs }}
+                      </p>
+                    </div>
                   </div>
 
                   <p class="muted">
@@ -4248,7 +4432,13 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                         ]"
                       >
                         <span class="log-line__number">{{ line.lineNumber }}</span>
-                        <span class="log-line__text">{{ line.text }}</span>
+                        <span class="log-line__text">
+                          <span
+                            v-for="segment in line.segments"
+                            :key="segment.key"
+                            :class="`log-token log-token--${segment.token}`"
+                          >{{ segment.text }}</span>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -4308,7 +4498,13 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                     :data-line-number="line.lineNumber"
                   >
                     <span class="log-line__number">{{ line.lineNumber }}</span>
-                    <span class="log-line__text">{{ line.text }}</span>
+                    <span class="log-line__text">
+                      <span
+                        v-for="segment in line.segments"
+                        :key="segment.key"
+                        :class="`log-token log-token--${segment.token}`"
+                      >{{ segment.text }}</span>
+                    </span>
                   </div>
                 </div>
                 <p
@@ -4619,7 +4815,13 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                                   ]"
                                 >
                                   <span class="log-line__number">{{ line.lineNumber }}</span>
-                                  <span class="log-line__text">{{ line.text }}</span>
+                                  <span class="log-line__text">
+                                    <span
+                                      v-for="segment in line.segments"
+                                      :key="segment.key"
+                                      :class="`log-token log-token--${segment.token}`"
+                                    >{{ segment.text }}</span>
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -4650,7 +4852,13 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                               :data-line-number="line.lineNumber"
                             >
                               <span class="log-line__number">{{ line.lineNumber }}</span>
-                              <span class="log-line__text">{{ line.text }}</span>
+                              <span class="log-line__text">
+                                <span
+                                  v-for="segment in line.segments"
+                                  :key="segment.key"
+                                  :class="`log-token log-token--${segment.token}`"
+                                >{{ segment.text }}</span>
+                              </span>
                             </div>
                           </div>
                           <p

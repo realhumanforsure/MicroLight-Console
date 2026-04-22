@@ -1198,11 +1198,14 @@ select {
 
 .candidate-config-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  padding: 14px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px 16px;
+  padding: 18px;
   border-radius: 18px;
-  background: rgba(6, 13, 25, 0.72);
+  border: 1px solid rgba(189, 210, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(9, 18, 34, 0.88), rgba(6, 13, 25, 0.72)),
+    rgba(6, 13, 25, 0.72);
 }
 
 .candidate-config-grid__header {
@@ -1210,8 +1213,44 @@ select {
   color: #dbe7fb;
 }
 
+.candidate-config-grid > .settings-field,
+.candidate-config-grid > .settings-toggle {
+  grid-column: span 4;
+  min-width: 0;
+}
+
+.candidate-config-grid .settings-field {
+  align-content: start;
+  gap: 7px;
+}
+
+.candidate-config-grid .settings-field span,
+.candidate-config-grid .settings-toggle span {
+  min-height: 18px;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.candidate-config-grid .settings-field input,
+.candidate-config-grid .settings-field select {
+  width: 100%;
+  min-height: 46px;
+}
+
+.candidate-config-grid .settings-field textarea {
+  min-height: 78px;
+}
+
+.candidate-config-grid .settings-field small {
+  min-height: 18px;
+}
+
 .candidate-config-field--wide {
-  grid-column: span 3;
+  grid-column: 1 / -1;
+}
+
+.candidate-config-field--wide select {
+  min-height: 118px;
 }
 
 .service-state {
@@ -1339,13 +1378,6 @@ select {
   line-height: 1.5;
 }
 
-.logs-panel--resizable pre {
-  min-height: 220px;
-  height: 260px;
-  max-height: none;
-  resize: vertical;
-}
-
 .logs-panel--workspace pre {
   max-height: 520px;
 }
@@ -1362,6 +1394,14 @@ select {
 
 .logs-panel__content--workspace {
   max-height: 520px;
+}
+
+.logs-panel__content.logs-panel__content--resizable {
+  min-height: 220px;
+  height: 260px;
+  max-height: none;
+  resize: vertical;
+  overflow: auto;
 }
 
 .log-line {
@@ -1407,6 +1447,53 @@ select {
   color: #d9e7fb;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.log-token--plain {
+  color: inherit;
+}
+
+.log-token--timestamp {
+  color: #7f97b8;
+}
+
+.log-token--level {
+  color: #d8e7ff;
+  font-weight: 700;
+}
+
+.log-line--info .log-token--level {
+  color: #7fc7ff;
+}
+
+.log-line--warn .log-token--level {
+  color: #ffd16f;
+}
+
+.log-line--error .log-token--level,
+.log-token--exception {
+  color: #ff8f9a;
+}
+
+.log-line--debug .log-token--level {
+  color: #9cbbff;
+}
+
+.log-token--thread {
+  color: #b5a7ff;
+}
+
+.log-token--logger {
+  color: #7fe8cf;
+}
+
+.log-token--success {
+  color: #8ff0b0;
+  font-weight: 700;
+}
+
+.log-token--number {
+  color: #e8c47f;
 }
 
 .document-section h2 {
@@ -1523,6 +1610,11 @@ dd {
 
   .candidate-config-grid {
     grid-template-columns: 1fr;
+  }
+
+  .candidate-config-grid > .settings-field,
+  .candidate-config-grid > .settings-toggle {
+    grid-column: span 1;
   }
 
   .candidate-config-field--wide {
