@@ -111,6 +111,15 @@ interface LocaleMessages {
   environmentDetailMvndStable: string
   environmentDetailMvndExperimental: string
   environmentDetailMvndUnsupported: string
+  compatibilityMatrixTitle: string
+  compatibilityMatrixVersionRange: string
+  compatibilityMatrixMatchState: string
+  compatibilityMatrixDetectedTools: string
+  compatibilityMatrixTargets: string
+  compatibilityMatrixRecommended: string
+  compatibilityMatrixDetected: string
+  compatibilityMatrixNotDetected: string
+  compatibilityMatrixNone: string
   serviceLaunch: string
   serviceRestart: string
   serviceStop: string
@@ -323,6 +332,15 @@ export const messages: Record<Locale, LocaleMessages> = {
     environmentDetailMvndStable: '当前 mvnd 版本位于稳定支持范围内，目标是 Maven 3.x。',
     environmentDetailMvndExperimental: '当前 mvnd 版本按实验性支持处理，目标是 Maven 4.x。',
     environmentDetailMvndUnsupported: '当前 mvnd 版本超出规划范围，建议切回 1.x 或 2.x 版本线。',
+    compatibilityMatrixTitle: 'Maven 兼容矩阵',
+    compatibilityMatrixVersionRange: '版本线',
+    compatibilityMatrixMatchState: '当前状态',
+    compatibilityMatrixDetectedTools: '本机命中',
+    compatibilityMatrixTargets: '目标 Maven',
+    compatibilityMatrixRecommended: '推荐使用',
+    compatibilityMatrixDetected: '已检测到',
+    compatibilityMatrixNotDetected: '未检测到',
+    compatibilityMatrixNone: '当前机器未命中这条版本线。',
     serviceLaunch: '构建并启动',
     serviceRestart: '重启服务',
     serviceStop: '停止服务',
@@ -531,6 +549,15 @@ export const messages: Record<Locale, LocaleMessages> = {
     environmentDetailMvndStable: 'This mvnd version is in the stable support range and targets Maven 3.x.',
     environmentDetailMvndExperimental: 'This mvnd version is treated as experimental support and targets Maven 4.x.',
     environmentDetailMvndUnsupported: 'This mvnd version is outside the planned support range. Prefer mvnd 1.x or 2.x.',
+    compatibilityMatrixTitle: 'Maven Compatibility Matrix',
+    compatibilityMatrixVersionRange: 'Version Line',
+    compatibilityMatrixMatchState: 'Current State',
+    compatibilityMatrixDetectedTools: 'Local Match',
+    compatibilityMatrixTargets: 'Target Maven',
+    compatibilityMatrixRecommended: 'Recommended',
+    compatibilityMatrixDetected: 'Detected',
+    compatibilityMatrixNotDetected: 'Not Detected',
+    compatibilityMatrixNone: 'This version line is not currently detected on this machine.',
     serviceLaunch: 'Build and Start',
     serviceRestart: 'Restart Service',
     serviceStop: 'Stop Service',

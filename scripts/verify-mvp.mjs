@@ -90,6 +90,21 @@ try {
     return `预检通过 ${payload.summary.passCount} 项，警告 ${payload.summary.warnCount} 项`
   })
 
+  await check('runtime-compatibility-matrix', '运行环境兼容矩阵', async () => {
+    const payload = await postJson('/api/runtime/detect', {
+      rootPath: sampleSingleModulePath
+    })
+
+    assert(Array.isArray(payload.compatibilityMatrix), '兼容矩阵格式不正确')
+    assert(payload.compatibilityMatrix.length === 4, `兼容矩阵数量异常：${payload.compatibilityMatrix.length}`)
+    assert(
+      payload.compatibilityMatrix.some((row) => row.matchState === 'recommended' || row.matchState === 'detected'),
+      '兼容矩阵没有命中任何本机版本线'
+    )
+
+    return `兼容矩阵 ${payload.compatibilityMatrix.length} 条，推荐构建器 ${payload.recommendedBuildTool ?? 'none'}`
+  })
+
   await check('unicode-path-scan', '中文与空格路径扫描', async () => {
     await mkdir(tempRoot, { recursive: true })
     await cp(sampleSingleModulePath, tempProjectPath, { recursive: true })

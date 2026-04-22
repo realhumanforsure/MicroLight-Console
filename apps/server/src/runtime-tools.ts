@@ -3,6 +3,7 @@ import path from 'node:path'
 import { spawn } from 'node:child_process'
 import type {
   BuildToolKind,
+  RuntimeCompatibilityMatrixRow,
   RuntimeDetectionResult,
   ToolSupportLevel,
   ToolAvailability
@@ -20,6 +21,7 @@ export async function detectRuntimeTools(rootPath: string): Promise<RuntimeDetec
     detectCommand('mvn', ['-version'], 'mvn'),
     detectCommand('mvnd', ['-v'], 'mvnd')
   ])
+  const recommendedBuildTool = resolveRecommendedBuildTool(mavenWrapper, mvnd, maven)
 
   return {
     rootPath: normalizedRootPath,
@@ -27,7 +29,13 @@ export async function detectRuntimeTools(rootPath: string): Promise<RuntimeDetec
     mavenWrapper,
     maven,
     mvnd,
-    recommendedBuildTool: resolveRecommendedBuildTool(mavenWrapper, mvnd, maven)
+    recommendedBuildTool,
+    compatibilityMatrix: createCompatibilityMatrix({
+      mavenWrapper,
+      maven,
+      mvnd,
+      recommendedBuildTool
+    })
   }
 }
 
@@ -283,6 +291,91 @@ function resolveSupportDetail(
   }
 
   return `Apache Maven ${parsedVersion ?? majorVersion} is outside the planned compatibility range.`
+}
+
+function createCompatibilityMatrix(input: {
+  mavenWrapper: ToolAvailability
+  maven: ToolAvailability
+  mvnd: ToolAvailability
+  recommendedBuildTool: BuildToolKind | null
+}): RuntimeCompatibilityMatrixRow[] {
+  return [
+    createCompatibilityMatrixRow({
+      id: 'maven3',
+      label: 'Maven 3.x',
+      versionRange: '3.x',
+      targetMaven: 'Maven 3.x',
+      supportLevel: 'stable',
+      matchingTools: [input.mavenWrapper, input.maven].filter(
+        (tool) => tool.available && tool.majorVersion === 3
+      ),
+      recommendedBuildTool: input.recommendedBuildTool,
+      detail: 'Stable baseline for current MVP build execution.'
+    }),
+    createCompatibilityMatrixRow({
+      id: 'maven4',
+      label: 'Maven 4.x',
+      versionRange: '4.x',
+      targetMaven: 'Maven 4.x',
+      supportLevel: 'experimental',
+      matchingTools: [input.mavenWrapper, input.maven].filter(
+        (tool) => tool.available && tool.majorVersion === 4
+      ),
+      recommendedBuildTool: input.recommendedBuildTool,
+      detail: 'Experimental path for Maven 4 projects.'
+    }),
+    createCompatibilityMatrixRow({
+      id: 'mvnd1',
+      label: 'mvnd 1.x',
+      versionRange: '1.x',
+      targetMaven: 'Maven 3.x',
+      supportLevel: 'stable',
+      matchingTools: [input.mvnd].filter((tool) => tool.available && tool.majorVersion === 1),
+      recommendedBuildTool: input.recommendedBuildTool,
+      detail: 'Stable daemon line for Maven 3.x acceleration.'
+    }),
+    createCompatibilityMatrixRow({
+      id: 'mvnd2',
+      label: 'mvnd 2.x',
+      versionRange: '2.x',
+      targetMaven: 'Maven 4.x',
+      supportLevel: 'experimental',
+      matchingTools: [input.mvnd].filter((tool) => tool.available && tool.majorVersion === 2),
+      recommendedBuildTool: input.recommendedBuildTool,
+      detail: 'Experimental daemon line for Maven 4.x acceleration.'
+    })
+  ]
+}
+
+function createCompatibilityMatrixRow(input: {
+  id: RuntimeCompatibilityMatrixRow['id']
+  label: string
+  versionRange: string
+  targetMaven: string
+  supportLevel: ToolSupportLevel
+  matchingTools: ToolAvailability[]
+  recommendedBuildTool: BuildToolKind | null
+  detail: string
+}): RuntimeCompatibilityMatrixRow {
+  const detectedTools = input.matchingTools.map((tool) => `${tool.kind} ${tool.parsedVersion ?? tool.version ?? 'unknown'}`)
+  const matchState =
+    input.recommendedBuildTool !== null &&
+    input.matchingTools.some((tool) => tool.kind === input.recommendedBuildTool)
+      ? 'recommended'
+      : detectedTools.length > 0
+        ? 'detected'
+        : 'not_detected'
+
+  return {
+    id: input.id,
+    label: input.label,
+    versionRange: input.versionRange,
+    targetMaven: input.targetMaven,
+    supportLevel: input.supportLevel,
+    matchState,
+    detectedTools,
+    detail: input.detail
+  }
 }
 
 export function execCommand(command: string, args: string[], cwd: string) {

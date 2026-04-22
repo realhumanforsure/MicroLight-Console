@@ -75,6 +75,7 @@ export type ServiceStatus = 'idle' | 'building' | 'running' | 'stopped' | 'faile
 export type ServiceHealthStatus = 'unknown' | 'healthy' | 'unhealthy'
 export type DesktopCloseAction = 'quit' | 'hide'
 export type ToolSupportLevel = 'stable' | 'experimental' | 'unsupported' | 'unknown'
+export type RuntimeCompatibilityMatchState = 'recommended' | 'detected' | 'not_detected'
 
 export interface ToolAvailability {
   kind: 'java' | BuildToolKind
@@ -100,6 +101,18 @@ export interface RuntimeDetectionResult {
   maven: ToolAvailability
   mvnd: ToolAvailability
   recommendedBuildTool: BuildToolKind | null
+  compatibilityMatrix: RuntimeCompatibilityMatrixRow[]
+}
+
+export interface RuntimeCompatibilityMatrixRow {
+  id: 'maven3' | 'maven4' | 'mvnd1' | 'mvnd2'
+  label: string
+  versionRange: string
+  targetMaven: string
+  supportLevel: ToolSupportLevel
+  matchState: RuntimeCompatibilityMatchState
+  detectedTools: string[]
+  detail: string
 }
 
 export interface ProjectPreflightRequest {

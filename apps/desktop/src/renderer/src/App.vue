@@ -622,6 +622,19 @@ function getToolSupportDetail(tool: ToolAvailability) {
   return tool.detail ?? text.value.runtimePending
 }
 
+function getCompatibilityMatchStateLabel(
+  matchState: RuntimeDetectionResult['compatibilityMatrix'][number]['matchState']
+) {
+  switch (matchState) {
+    case 'recommended':
+      return text.value.compatibilityMatrixRecommended
+    case 'detected':
+      return text.value.compatibilityMatrixDetected
+    default:
+      return text.value.compatibilityMatrixNotDetected
+  }
+}
+
 function getServiceStatusLabel(status: ServiceInstanceState['status']) {
   switch (status) {
     case 'building':
@@ -1140,6 +1153,7 @@ const runtimeTools = computed(() =>
       ]
     : []
 )
+const runtimeCompatibilityMatrix = computed(() => runtimeDetection.value?.compatibilityMatrix ?? [])
 
 const buildToolOptions = computed(() => [
   { value: 'auto', label: text.value.settingsAuto },
@@ -1741,6 +1755,45 @@ const closeActionOptions = computed(() => [
             </p>
             <p>{{ getToolSupportDetail(tool) }}</p>
           </article>
+        </div>
+
+        <div
+          v-if="runtimeCompatibilityMatrix.length > 0"
+          class="service-group-panel service-group-panel--compact"
+        >
+          <div class="project-panel__subheader">
+            <h3>{{ text.compatibilityMatrixTitle }}</h3>
+            <span class="pill ghost">
+              {{ runtimeCompatibilityMatrix.length }}
+            </span>
+          </div>
+
+          <div class="preflight-list">
+            <article
+              v-for="row in runtimeCompatibilityMatrix"
+              :key="row.id"
+              class="preflight-item"
+            >
+              <div class="project-panel__subheader">
+                <strong>{{ row.label }}</strong>
+                <span
+                  class="pill ghost"
+                  :class="{
+                    'pill--warn': row.matchState === 'recommended' || row.supportLevel === 'experimental'
+                  }"
+                >
+                  {{ getCompatibilityMatchStateLabel(row.matchState) }}
+                </span>
+              </div>
+              <p>{{ text.compatibilityMatrixVersionRange }}: {{ row.versionRange }}</p>
+              <p>{{ text.compatibilityMatrixTargets }}: {{ row.targetMaven }}</p>
+              <p>{{ text.environmentSupport }}: {{ getToolSupportLabel(row.supportLevel) }}</p>
+              <p>
+                {{ text.compatibilityMatrixDetectedTools }}:
+                {{ row.detectedTools.length > 0 ? row.detectedTools.join(' / ') : text.compatibilityMatrixNone }}
+              </p>
+            </article>
+          </div>
         </div>
       </div>
 
