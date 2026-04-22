@@ -85,6 +85,8 @@ await writeJson(path.join(stageRoot, 'package.json'), {
     ],
     asar: true,
     asarUnpack: ['node_modules/**/*.node'],
+    electronLanguages: ['zh-CN', 'en-US'],
+    compression: 'maximum',
     npmRebuild: true,
     copyright: 'Copyright © 2026 realhumanforsure',
     win: {

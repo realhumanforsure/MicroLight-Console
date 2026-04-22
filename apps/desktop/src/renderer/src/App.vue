@@ -3874,7 +3874,15 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                     />
                   </label>
 
-                  <label class="settings-field candidate-config-field--wide">
+                  <label class="settings-toggle candidate-config-skip-tests">
+                    <input
+                      v-model="getLaunchConfig(module.artifactId, candidate).skipTests"
+                      type="checkbox"
+                    />
+                    <span>{{ text.settingsSkipTests }}</span>
+                  </label>
+
+                  <label class="settings-field candidate-config-field--compact-list">
                     <span>{{ text.serviceConfigDependencies }}</span>
                     <select
                       v-model="getLaunchConfig(module.artifactId, candidate).dependsOnServiceIds"
@@ -3891,15 +3899,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                     <small>{{ text.serviceConfigDependenciesHint }}</small>
                   </label>
 
-                  <label class="settings-toggle">
-                    <input
-                      v-model="getLaunchConfig(module.artifactId, candidate).skipTests"
-                      type="checkbox"
-                    />
-                    <span>{{ text.settingsSkipTests }}</span>
-                  </label>
-
-                  <label class="settings-field candidate-config-field--wide">
+                  <label class="settings-field candidate-config-field--textarea">
                     <span>{{ text.serviceConfigJvmArgs }}</span>
                     <textarea
                       v-model="getLaunchConfig(module.artifactId, candidate).jvmArgs"
@@ -3908,7 +3908,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                     />
                   </label>
 
-                  <label class="settings-field candidate-config-field--wide">
+                  <label class="settings-field candidate-config-field--textarea">
                     <span>{{ text.serviceConfigProgramArgs }}</span>
                     <textarea
                       v-model="getLaunchConfig(module.artifactId, candidate).programArgs"

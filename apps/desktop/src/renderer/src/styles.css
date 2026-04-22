@@ -1199,8 +1199,8 @@ select {
 .candidate-config-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 14px 16px;
-  padding: 18px;
+  gap: 16px 18px;
+  padding: 20px;
   border-radius: 18px;
   border: 1px solid rgba(189, 210, 255, 0.08);
   background:
@@ -1221,12 +1221,12 @@ select {
 
 .candidate-config-grid .settings-field {
   align-content: start;
-  gap: 7px;
+  gap: 8px;
 }
 
 .candidate-config-grid .settings-field span,
 .candidate-config-grid .settings-toggle span {
-  min-height: 18px;
+  min-height: 20px;
   font-size: 13px;
   letter-spacing: 0.01em;
 }
@@ -1234,23 +1234,39 @@ select {
 .candidate-config-grid .settings-field input,
 .candidate-config-grid .settings-field select {
   width: 100%;
-  min-height: 46px;
+  min-height: 48px;
 }
 
 .candidate-config-grid .settings-field textarea {
-  min-height: 78px;
+  min-height: 92px;
 }
 
 .candidate-config-grid .settings-field small {
   min-height: 18px;
 }
 
-.candidate-config-field--wide {
-  grid-column: 1 / -1;
+.candidate-config-grid .settings-toggle {
+  align-self: end;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid rgba(189, 210, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(11, 19, 35, 0.78);
 }
 
-.candidate-config-field--wide select {
-  min-height: 118px;
+.candidate-config-grid .settings-toggle input {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+.candidate-config-field--compact-list select {
+  min-height: 92px;
+  max-height: 92px;
+  overflow: auto;
+}
+
+.candidate-config-field--textarea textarea {
+  max-height: 160px;
 }
 
 .service-state {
@@ -1614,10 +1630,6 @@ dd {
 
   .candidate-config-grid > .settings-field,
   .candidate-config-grid > .settings-toggle {
-    grid-column: span 1;
-  }
-
-  .candidate-config-field--wide {
     grid-column: span 1;
   }
 }
