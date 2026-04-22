@@ -57,8 +57,16 @@ interface ServiceLaunchConfig {
   dependsOnServiceIds: string[]
 }
 
+type WorkspaceTab = 'services' | 'logs' | 'checks' | 'settings' | 'release'
 type LogLevelFilter = 'all' | 'info' | 'warn' | 'error' | 'debug'
 type RenderedLogLevel = 'default' | 'info' | 'warn' | 'error' | 'debug'
+
+interface ScannedServiceView {
+  serviceId: string
+  displayName: string
+  module: ProjectScanResult['modules'][number]
+  candidate: ServiceCandidate
+}
 
 interface LogLineView {
   lineNumber: number
@@ -127,6 +135,8 @@ const serviceInstances = ref<Record<string, ServiceInstanceState>>({})
 const serviceGroups = ref<ServiceGroupInstance[]>([])
 const savedServiceGroups = ref<SavedServiceGroup[]>([])
 const serviceLaunchConfigs = ref<Record<string, ServiceLaunchConfig>>({})
+const activeWorkspaceTab = ref<WorkspaceTab>('services')
+const activeScannedServiceId = ref('')
 const locale = ref<Locale>(DEFAULT_LOCALE)
 const appSettings = ref<AppSettings>({
   locale: DEFAULT_LOCALE,
@@ -223,6 +233,7 @@ watch(projectScan, (scanResult) => {
   if (!scanResult) {
     serviceLaunchConfigs.value = {}
     savedServiceGroups.value = []
+    activeScannedServiceId.value = ''
     return
   }
 
@@ -236,7 +247,10 @@ watch(projectScan, (scanResult) => {
   }
 
   serviceLaunchConfigs.value = nextConfigs
-  selectedLogServiceId.value = scanResult.savedLastSelectedServiceId ?? ''
+  activeScannedServiceId.value = scanResult.savedLastSelectedServiceId && nextConfigs[scanResult.savedLastSelectedServiceId]
+    ? scanResult.savedLastSelectedServiceId
+    : Object.keys(nextConfigs)[0] ?? ''
+  selectedLogServiceId.value = scanResult.savedLastSelectedServiceId ?? selectedLogServiceId.value
 })
 
 watch(selectedLogServiceId, (serviceId) => {
@@ -558,6 +572,33 @@ async function detectRuntime() {
 
 function getServiceId(artifactId: string, mainClass: string) {
   return `${artifactId}:${mainClass}`
+}
+
+function getServiceDisplayName(artifactId: string) {
+  return artifactId
+    .replace(/-(biz|app)$/i, '')
+    .replace(/^sage-/, '')
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function switchWorkspaceTab(tab: WorkspaceTab) {
+  activeWorkspaceTab.value = tab
+
+  if (tab === 'logs' && activeScannedServiceId.value && serviceInstances.value[activeScannedServiceId.value]) {
+    selectedLogServiceId.value = activeScannedServiceId.value
+  }
+}
+
+function selectScannedService(serviceId: string) {
+  activeScannedServiceId.value = serviceId
+  activeWorkspaceTab.value = 'services'
+
+  if (serviceInstances.value[serviceId]) {
+    selectedLogServiceId.value = serviceId
+  }
 }
 
 function createLaunchConfig(candidate: ServiceCandidate): ServiceLaunchConfig {
@@ -1795,24 +1836,14 @@ function createServiceLaunchRequest(modulePath: string, artifactId: string, cand
 }
 
 function getDependencyOptions(artifactId: string, candidate: ServiceCandidate) {
-  if (!projectScan.value) {
-    return []
-  }
-
   const currentServiceId = getServiceId(artifactId, candidate.mainClass)
 
-  return projectScan.value.modules.flatMap((module) =>
-    module.serviceCandidates
-      .map((serviceCandidate) => {
-        const serviceId = getServiceId(module.artifactId, serviceCandidate.mainClass)
-
-        return {
-          serviceId,
-          label: `${module.artifactId} · ${serviceCandidate.className}`
-        }
-      })
-      .filter((option) => option.serviceId !== currentServiceId)
-  )
+  return scannedServiceViews.value
+    .map((service) => ({
+      serviceId: service.serviceId,
+      label: `${service.displayName} · ${service.candidate.className}`
+    }))
+    .filter((option) => option.serviceId !== currentServiceId)
 }
 
 function createScannedServiceLaunchRequests() {
@@ -1820,10 +1851,8 @@ function createScannedServiceLaunchRequests() {
     return []
   }
 
-  return projectScan.value.modules.flatMap((module) =>
-    module.serviceCandidates.map((candidate) =>
-      createServiceLaunchRequest(module.modulePath, module.artifactId, candidate)
-    )
+  return scannedServiceViews.value.map((service) =>
+    createServiceLaunchRequest(service.module.modulePath, service.module.artifactId, service.candidate)
   )
 }
 
@@ -2483,6 +2512,35 @@ const scannedServiceCount = computed(() => {
   )
 })
 
+const scannedServiceViews = computed<ScannedServiceView[]>(() => {
+  if (!projectScan.value) {
+    return []
+  }
+
+  return projectScan.value.modules.flatMap((module) =>
+    module.serviceCandidates.map((candidate) => ({
+      serviceId: getServiceId(module.artifactId, candidate.mainClass),
+      displayName: getServiceDisplayName(module.artifactId),
+      module,
+      candidate
+    }))
+  )
+})
+
+const currentScannedServiceId = computed(() =>
+  activeScannedServiceId.value || scannedServiceViews.value[0]?.serviceId || ''
+)
+
+const activeScannedService = computed(() =>
+  scannedServiceViews.value.find((service) => service.serviceId === currentScannedServiceId.value) ??
+  scannedServiceViews.value[0] ??
+  null
+)
+
+const activeScannedServiceInstance = computed(() =>
+  activeScannedService.value ? serviceInstances.value[activeScannedService.value.serviceId] : null
+)
+
 const lastServiceGroup = computed(() => serviceGroups.value[0] ?? null)
 const lastServiceGroupServices = computed(() =>
   lastServiceGroup.value
@@ -2514,6 +2572,14 @@ const buildToolOptions = computed(() => [
 const closeActionOptions = computed(() => [
   { value: 'hide' satisfies DesktopCloseAction, label: text.value.settingsCloseActionHide },
   { value: 'quit' satisfies DesktopCloseAction, label: text.value.settingsCloseActionQuit }
+])
+
+const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(() => [
+  { value: 'services', label: text.value.workspaceTabServices },
+  { value: 'logs', label: text.value.workspaceTabLogs },
+  { value: 'checks', label: text.value.workspaceTabChecks },
+  { value: 'settings', label: text.value.workspaceTabSettings },
+  { value: 'release', label: text.value.workspaceTabRelease }
 ])
 </script>
 
@@ -2558,7 +2624,121 @@ const closeActionOptions = computed(() => [
       </div>
     </section>
 
-    <section class="panel-grid">
+    <section class="app-workbench">
+      <aside class="workbench-sidebar">
+        <div class="workbench-sidebar__header">
+          <p class="eyebrow">{{ text.workspaceSidebarTitle }}</p>
+          <strong>{{ projectScan?.artifactId ?? APP_NAME }}</strong>
+          <span>{{ selectedProjectPath || text.noProjectSelected }}</span>
+        </div>
+
+        <div class="workbench-sidebar__actions">
+          <span>{{ text.workspaceSidebarProject }}</span>
+          <div class="workbench-action-grid">
+            <button
+              class="secondary-button"
+              type="button"
+              @click="selectProjectDirectory"
+            >
+              {{ text.selectProject }}
+            </button>
+            <button
+              class="secondary-button"
+              type="button"
+              @click="scanProject"
+            >
+              {{ scanning ? text.scanning : text.scanProject }}
+            </button>
+            <button
+              class="secondary-button"
+              type="button"
+              @click="detectRuntime"
+            >
+              {{ detecting ? text.servicePreparing : text.detectEnvironment }}
+            </button>
+          </div>
+        </div>
+
+        <div class="workbench-sidebar__meta">
+          <span class="pill ghost">
+            {{ text.workspaceSidebarModules }}: {{ projectScan?.moduleCount ?? 0 }}
+          </span>
+          <span class="pill">
+            {{ text.workspaceSidebarRunnable }}: {{ scannedServiceViews.length }}
+          </span>
+        </div>
+
+        <div
+          v-if="activeScannedService"
+          class="workbench-active-service"
+        >
+          <span>{{ text.serviceStatus }}</span>
+          <strong>{{ activeScannedService.displayName }}</strong>
+          <em>
+            {{
+              activeScannedServiceInstance
+                ? getServiceStatusLabel(activeScannedServiceInstance.status)
+                : text.serviceActiveHint
+            }}
+          </em>
+        </div>
+
+        <div class="workbench-service-list">
+          <div class="workbench-service-list__header">
+            <strong>{{ text.workspaceSidebarServices }}</strong>
+            <span>{{ scannedServiceViews.length }}</span>
+          </div>
+
+          <template v-if="scannedServiceViews.length === 0">
+            <p class="muted">{{ text.workspaceSidebarNoServices }}</p>
+          </template>
+          <template v-else>
+            <button
+              v-for="service in scannedServiceViews"
+              :key="service.serviceId"
+              class="workbench-service-button"
+              :class="{ active: currentScannedServiceId === service.serviceId }"
+              type="button"
+              @click="selectScannedService(service.serviceId)"
+            >
+              <span class="workbench-service-button__dot"></span>
+              <span>
+                <strong>{{ service.displayName }}</strong>
+                <em>{{ service.module.artifactId }}</em>
+              </span>
+              <small>
+                {{
+                  serviceInstances[service.serviceId]
+                    ? getServiceStatusLabel(serviceInstances[service.serviceId].status)
+                    : service.candidate.className
+                }}
+              </small>
+            </button>
+          </template>
+        </div>
+      </aside>
+
+      <section class="workbench-stage">
+        <nav
+          class="workspace-tabs"
+          aria-label="Workspace sections"
+        >
+          <button
+            v-for="tab in workspaceTabs"
+            :key="tab.value"
+            class="workspace-tab"
+            :class="{ active: activeWorkspaceTab === tab.value }"
+            type="button"
+            @click="switchWorkspaceTab(tab.value)"
+          >
+            {{ tab.label }}
+          </button>
+        </nav>
+
+    <section
+      v-show="activeWorkspaceTab === 'settings'"
+      class="panel-grid"
+    >
       <article class="panel">
         <h2>{{ text.runtimeTitle }}</h2>
         <dl>
@@ -2721,7 +2901,10 @@ const closeActionOptions = computed(() => [
       </article>
     </section>
 
-    <section class="panel-grid">
+    <section
+      v-show="activeWorkspaceTab === 'checks'"
+      class="panel-grid"
+    >
       <article class="panel">
         <h2>{{ text.healthTitle }}</h2>
         <template v-if="loading">
@@ -2878,7 +3061,10 @@ const closeActionOptions = computed(() => [
       </article>
     </section>
 
-    <section class="project-panel release-panel">
+    <section
+      v-show="activeWorkspaceTab === 'release'"
+      class="project-panel release-panel"
+    >
       <div class="project-panel__header">
         <div>
           <p class="eyebrow">{{ text.releaseEyebrow }}</p>
@@ -2957,7 +3143,10 @@ const closeActionOptions = computed(() => [
       </template>
     </section>
 
-    <section class="project-panel">
+    <section
+      v-show="activeWorkspaceTab === 'services'"
+      class="project-panel"
+    >
       <div class="project-panel__header">
         <div>
           <p class="eyebrow">{{ text.scannerEyebrow }}</p>
@@ -3271,16 +3460,29 @@ const closeActionOptions = computed(() => [
           </div>
         </div>
 
+        <p class="muted">{{ text.serviceActiveHint }}</p>
+
         <div class="module-list">
+          <p
+            v-if="scannedServiceViews.length === 0"
+            class="muted"
+          >
+            {{ text.noStartupClassDetected }}
+          </p>
           <article
             v-for="module in projectScan.modules"
             :key="module.modulePath"
+            v-show="
+              module.serviceCandidates.some(
+                (candidate) => getServiceId(module.artifactId, candidate.mainClass) === currentScannedServiceId
+              )
+            "
             class="module-card"
           >
             <div class="module-card__header">
               <div>
-                <h3>{{ module.artifactId }}</h3>
-                <p>{{ module.modulePath }}</p>
+                <h3>{{ activeScannedService?.displayName ?? module.artifactId }}</h3>
+                <p>{{ text.serviceModuleSource }}: {{ module.artifactId }} · {{ module.modulePath }}</p>
               </div>
               <span class="pill ghost">
                 {{ module.serviceCandidates.length }} {{ text.startupClassCountSuffix }}
@@ -3291,6 +3493,7 @@ const closeActionOptions = computed(() => [
               <li
                 v-for="candidate in module.serviceCandidates"
                 :key="candidate.javaFilePath"
+                v-show="getServiceId(module.artifactId, candidate.mainClass) === currentScannedServiceId"
                 class="candidate-item"
               >
                 <div class="candidate-topline">
@@ -3537,7 +3740,10 @@ const closeActionOptions = computed(() => [
       </div>
     </section>
 
-    <section class="project-panel">
+    <section
+      v-show="activeWorkspaceTab === 'logs'"
+      class="project-panel"
+    >
       <div class="project-panel__subheader">
         <h2>{{ text.logsWorkspaceTitle }}</h2>
       </div>
@@ -4377,6 +4583,8 @@ const closeActionOptions = computed(() => [
           </div>
         </div>
       </template>
+    </section>
+      </section>
     </section>
   </main>
 </template>

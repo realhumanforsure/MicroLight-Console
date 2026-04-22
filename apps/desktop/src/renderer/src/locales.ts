@@ -13,6 +13,19 @@ interface LocaleMessages {
   switchToChinese: string
   switchToEnglish: string
   refreshHealth: string
+  workspaceTabServices: string
+  workspaceTabLogs: string
+  workspaceTabChecks: string
+  workspaceTabSettings: string
+  workspaceTabRelease: string
+  workspaceSidebarTitle: string
+  workspaceSidebarProject: string
+  workspaceSidebarServices: string
+  workspaceSidebarNoServices: string
+  workspaceSidebarModules: string
+  workspaceSidebarRunnable: string
+  serviceModuleSource: string
+  serviceActiveHint: string
   runtimeTitle: string
   runtimeApp: string
   runtimeVersion: string
@@ -314,6 +327,19 @@ export const messages: Record<Locale, LocaleMessages> = {
     switchToChinese: '中文',
     switchToEnglish: 'English',
     refreshHealth: '刷新健康检查',
+    workspaceTabServices: '服务',
+    workspaceTabLogs: '日志',
+    workspaceTabChecks: '检查',
+    workspaceTabSettings: '设置',
+    workspaceTabRelease: '发布',
+    workspaceSidebarTitle: '工作台',
+    workspaceSidebarProject: '项目操作',
+    workspaceSidebarServices: '可启动服务',
+    workspaceSidebarNoServices: '扫描后会在这里显示可启动服务。',
+    workspaceSidebarModules: '模块',
+    workspaceSidebarRunnable: '服务',
+    serviceModuleSource: '来源模块',
+    serviceActiveHint: '当前只展示可启动服务，api 与聚合模块不会作为服务显示。',
     runtimeTitle: '运行时信息',
     runtimeApp: '应用名称',
     runtimeVersion: '应用版本',
@@ -637,6 +663,19 @@ export const messages: Record<Locale, LocaleMessages> = {
     switchToChinese: '中文',
     switchToEnglish: 'English',
     refreshHealth: 'Refresh Health',
+    workspaceTabServices: 'Services',
+    workspaceTabLogs: 'Logs',
+    workspaceTabChecks: 'Checks',
+    workspaceTabSettings: 'Settings',
+    workspaceTabRelease: 'Release',
+    workspaceSidebarTitle: 'Workbench',
+    workspaceSidebarProject: 'Project Actions',
+    workspaceSidebarServices: 'Runnable Services',
+    workspaceSidebarNoServices: 'Runnable services will appear here after scanning.',
+    workspaceSidebarModules: 'Modules',
+    workspaceSidebarRunnable: 'Services',
+    serviceModuleSource: 'Source Module',
+    serviceActiveHint: 'Only runnable services are shown here. API and aggregator modules are not listed as services.',
     runtimeTitle: 'Runtime',
     runtimeApp: 'App',
     runtimeVersion: 'Version',
