@@ -102,6 +102,10 @@ interface LocaleMessages {
   serviceStop: string
   serviceConfigTitle: string
   serviceConfigBuildTool: string
+  serviceConfigMavenThreads: string
+  serviceConfigMavenThreadsPlaceholder: string
+  serviceConfigMavenThreadsHint: string
+  serviceConfigMavenThreadsInvalid: string
   serviceConfigProfiles: string
   serviceConfigProfilesPlaceholder: string
   serviceConfigHealthPath: string
@@ -296,6 +300,10 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceStop: '停止服务',
     serviceConfigTitle: '启动配置',
     serviceConfigBuildTool: '本次构建器',
+    serviceConfigMavenThreads: 'Maven 线程',
+    serviceConfigMavenThreadsPlaceholder: '例如：1、2、1C、2C',
+    serviceConfigMavenThreadsHint: '默认 1，为 mvnd 提供更稳的保护模式；需要加速时可改为 1C 或 2C。',
+    serviceConfigMavenThreadsInvalid: 'Maven 线程必须是正整数或 C 倍数，例如 1、2、1C、2C。',
     serviceConfigProfiles: 'Spring Profiles',
     serviceConfigProfilesPlaceholder: '例如：dev,local',
     serviceConfigHealthPath: '健康检查路径',
@@ -486,6 +494,10 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceStop: 'Stop Service',
     serviceConfigTitle: 'Launch Configuration',
     serviceConfigBuildTool: 'Builder for This Run',
+    serviceConfigMavenThreads: 'Maven Threads',
+    serviceConfigMavenThreadsPlaceholder: 'For example: 1, 2, 1C, 2C',
+    serviceConfigMavenThreadsHint: 'Defaults to 1 for a safer mvnd mode. Use 1C or 2C when you want faster parallel builds.',
+    serviceConfigMavenThreadsInvalid: 'Maven threads must be a positive integer or C multiplier, such as 1, 2, 1C, or 2C.',
     serviceConfigProfiles: 'Spring Profiles',
     serviceConfigProfilesPlaceholder: 'For example: dev,local',
     serviceConfigHealthPath: 'Health Check Path',

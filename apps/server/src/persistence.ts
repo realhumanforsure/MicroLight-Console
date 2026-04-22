@@ -8,6 +8,7 @@ import {
   DEFAULT_CLOSE_ACTION,
   DEFAULT_HEALTH_CHECK_PATH,
   DEFAULT_JVM_ARGS,
+  DEFAULT_MAVEN_THREADS,
   DEFAULT_PROGRAM_ARGS,
   DEFAULT_SKIP_TESTS,
   DEFAULT_SPRING_PROFILES,
@@ -193,6 +194,7 @@ class PersistenceService {
             program_args,
             spring_profiles,
             health_check_path,
+            maven_threads,
             updated_at
           )
           VALUES (
@@ -207,6 +209,7 @@ class PersistenceService {
             @programArgs,
             @springProfiles,
             @healthCheckPath,
+            @mavenThreads,
             @updatedAt
           )
           ON CONFLICT(service_id)
@@ -221,11 +224,13 @@ class PersistenceService {
             program_args = excluded.program_args,
             spring_profiles = excluded.spring_profiles,
             health_check_path = excluded.health_check_path,
+            maven_threads = excluded.maven_threads,
             updated_at = excluded.updated_at
         `
       )
       .run({
         ...preference,
+        mavenThreads: normalizeMavenThreads(preference.mavenThreads),
         skipTests: preference.skipTests ? 1 : 0,
         updatedAt
       })
@@ -241,6 +246,7 @@ class PersistenceService {
     | 'programArgs'
     | 'springProfiles'
     | 'healthCheckPath'
+    | 'mavenThreads'
   > | null {
     const row = this.db
       .prepare(
@@ -251,7 +257,8 @@ class PersistenceService {
             jvm_args AS jvmArgs,
             program_args AS programArgs,
             spring_profiles AS springProfiles,
-            health_check_path AS healthCheckPath
+            health_check_path AS healthCheckPath,
+            maven_threads AS mavenThreads
           FROM service_preferences
           WHERE service_id = ?
         `
@@ -264,6 +271,7 @@ class PersistenceService {
           programArgs: string | null
           springProfiles: string | null
           healthCheckPath: string | null
+          mavenThreads: string | null
         }
       | undefined
 
@@ -277,7 +285,8 @@ class PersistenceService {
       jvmArgs: row.jvmArgs ?? DEFAULT_JVM_ARGS,
       programArgs: row.programArgs ?? DEFAULT_PROGRAM_ARGS,
       springProfiles: row.springProfiles ?? DEFAULT_SPRING_PROFILES,
-      healthCheckPath: row.healthCheckPath ?? DEFAULT_HEALTH_CHECK_PATH
+      healthCheckPath: row.healthCheckPath ?? DEFAULT_HEALTH_CHECK_PATH,
+      mavenThreads: row.mavenThreads ?? DEFAULT_MAVEN_THREADS
     }
   }
 
@@ -387,7 +396,8 @@ class PersistenceService {
             jvm_args,
             program_args,
             spring_profiles,
-            health_check_path
+            health_check_path,
+            maven_threads
           )
           VALUES (
             @groupId,
@@ -404,7 +414,8 @@ class PersistenceService {
             @jvmArgs,
             @programArgs,
             @springProfiles,
-            @healthCheckPath
+            @healthCheckPath,
+            @mavenThreads
           )
         `
       )
@@ -425,7 +436,8 @@ class PersistenceService {
           jvmArgs: service.jvmArgs,
           programArgs: service.programArgs,
           springProfiles: service.springProfiles,
-          healthCheckPath: service.healthCheckPath
+          healthCheckPath: service.healthCheckPath,
+          mavenThreads: normalizeMavenThreads(service.mavenThreads)
         })
       })
     })
@@ -474,6 +486,7 @@ class PersistenceService {
         program_args TEXT NOT NULL DEFAULT '',
         spring_profiles TEXT NOT NULL DEFAULT '',
         health_check_path TEXT NOT NULL DEFAULT '/actuator/health',
+        maven_threads TEXT NOT NULL DEFAULT '1',
         updated_at TEXT NOT NULL
       );
 
@@ -504,6 +517,7 @@ class PersistenceService {
         program_args TEXT NOT NULL DEFAULT '',
         spring_profiles TEXT NOT NULL DEFAULT '',
         health_check_path TEXT NOT NULL DEFAULT '/actuator/health',
+        maven_threads TEXT NOT NULL DEFAULT '1',
         PRIMARY KEY(group_id, service_id),
         FOREIGN KEY(group_id) REFERENCES service_groups(group_id) ON DELETE CASCADE
       );
@@ -517,6 +531,11 @@ class PersistenceService {
       'health_check_path',
       `TEXT NOT NULL DEFAULT '${DEFAULT_HEALTH_CHECK_PATH}'`
     )
+    this.ensureColumn(
+      'service_preferences',
+      'maven_threads',
+      `TEXT NOT NULL DEFAULT '${DEFAULT_MAVEN_THREADS}'`
+    )
     this.ensureColumn('service_groups', 'startup_interval_ms', 'INTEGER NOT NULL DEFAULT 5000')
     this.ensureColumn('service_group_services', 'jvm_args', "TEXT NOT NULL DEFAULT ''")
     this.ensureColumn('service_group_services', 'program_args', "TEXT NOT NULL DEFAULT ''")
@@ -526,6 +545,11 @@ class PersistenceService {
       'service_group_services',
       'health_check_path',
       `TEXT NOT NULL DEFAULT '${DEFAULT_HEALTH_CHECK_PATH}'`
+    )
+    this.ensureColumn(
+      'service_group_services',
+      'maven_threads',
+      `TEXT NOT NULL DEFAULT '${DEFAULT_MAVEN_THREADS}'`
     )
   }
 
@@ -590,7 +614,8 @@ class PersistenceService {
             jvm_args AS jvmArgs,
             program_args AS programArgs,
             spring_profiles AS springProfiles,
-            health_check_path AS healthCheckPath
+            health_check_path AS healthCheckPath,
+            maven_threads AS mavenThreads
           FROM service_group_services
           WHERE group_id = ?
           ORDER BY order_index ASC
@@ -607,7 +632,8 @@ class PersistenceService {
       ...row,
       skipTests: row.skipTests === 1,
       dependsOnServiceIds: parseServiceDependencies(row.dependsOnServiceIds),
-      healthCheckPath: row.healthCheckPath ?? DEFAULT_HEALTH_CHECK_PATH
+      healthCheckPath: row.healthCheckPath ?? DEFAULT_HEALTH_CHECK_PATH,
+      mavenThreads: row.mavenThreads ?? DEFAULT_MAVEN_THREADS
     }))
   }
 }
@@ -643,6 +669,16 @@ function parseServiceDependencies(value: string | null) {
   } catch {
     return []
   }
+}
+
+function normalizeMavenThreads(value: string | undefined) {
+  const normalizedValue = value?.trim().toUpperCase() ?? ''
+
+  if (!/^(?:[1-9]\d*|[1-9]\d*(?:\.\d+)?C|0?\.\d+C)$/.test(normalizedValue)) {
+    return DEFAULT_MAVEN_THREADS
+  }
+
+  return normalizedValue
 }
 
 export const persistenceService = new PersistenceService()

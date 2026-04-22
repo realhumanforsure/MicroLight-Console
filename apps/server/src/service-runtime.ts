@@ -5,6 +5,7 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import pidusage from 'pidusage'
+import { DEFAULT_HEALTH_CHECK_PATH, DEFAULT_MAVEN_THREADS } from '@microlight/shared'
 import type {
   BuildToolKind,
   ServiceHealthStatus,
@@ -12,7 +13,6 @@ import type {
   ServiceLaunchRequest,
   ServiceStatus
 } from '@microlight/shared'
-import { DEFAULT_HEALTH_CHECK_PATH } from '@microlight/shared'
 import { resolveBuildCommand, runStreamingCommand } from './runtime-tools.js'
 
 const MAX_LOG_LINES = 200
@@ -349,15 +349,16 @@ function createInitialState(serviceId: string, request: ServiceLaunchRequest): S
   }
 }
 
-function createBuildArgs(
+export function createBuildArgs(
   request: ServiceLaunchRequest,
   buildTool: BuildToolKind
 ) {
   const args: string[] = []
   const relativeModulePath = normalizeModuleSelector(request.rootPath, request.modulePath)
+  const mavenThreads = normalizeMavenThreads(request.mavenThreads)
 
-  if (buildTool === 'mvnd') {
-    args.push('-T1')
+  if (mavenThreads !== null && (buildTool === 'mvnd' || (request.mavenThreads ?? '').trim().length > 0)) {
+    args.push(`-T${mavenThreads}`)
   }
 
   if (relativeModulePath !== null) {
@@ -370,6 +371,22 @@ function createBuildArgs(
 
   args.push('package')
   return args
+}
+
+function normalizeMavenThreads(input: string | undefined) {
+  const trimmedInput = input?.trim() ?? ''
+
+  if (trimmedInput.length === 0) {
+    return DEFAULT_MAVEN_THREADS
+  }
+
+  const normalizedInput = trimmedInput.toUpperCase()
+
+  if (!/^(?:[1-9]\d*|[1-9]\d*(?:\.\d+)?C|0?\.\d+C)$/.test(normalizedInput)) {
+    return DEFAULT_MAVEN_THREADS
+  }
+
+  return normalizedInput
 }
 
 function createLaunchArgs(request: ServiceLaunchRequest, jarPath: string) {

@@ -205,7 +205,8 @@ export async function createServer() {
           jvmArgs: service.jvmArgs,
           programArgs: service.programArgs,
           springProfiles: service.springProfiles,
-          healthCheckPath: service.healthCheckPath
+          healthCheckPath: service.healthCheckPath,
+          mavenThreads: service.mavenThreads
         })
       }
 
@@ -244,7 +245,8 @@ export async function createServer() {
         jvmArgs: request.body.jvmArgs,
         programArgs: request.body.programArgs,
         springProfiles: request.body.springProfiles,
-        healthCheckPath: request.body.healthCheckPath
+        healthCheckPath: request.body.healthCheckPath,
+        mavenThreads: request.body.mavenThreads
       })
       return await serviceRuntimeManager.launchService(request.body)
     } catch (error) {

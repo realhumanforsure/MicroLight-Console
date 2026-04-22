@@ -5,6 +5,7 @@ import {
   DEFAULT_BUILD_TOOL_PREFERENCE,
   DEFAULT_CLOSE_ACTION,
   DEFAULT_HEALTH_CHECK_PATH,
+  DEFAULT_MAVEN_THREADS,
   DEFAULT_SERVER_URL,
   DEFAULT_SKIP_TESTS,
   DEFAULT_TRAY_ENABLED,
@@ -45,6 +46,7 @@ interface ServiceLaunchConfig {
   programArgs: string
   springProfiles: string
   healthCheckPath: string
+  mavenThreads: string
   dependsOnServiceIds: string[]
 }
 
@@ -434,6 +436,7 @@ function createLaunchConfig(candidate: ServiceCandidate): ServiceLaunchConfig {
     programArgs: candidate.savedProgramArgs,
     springProfiles: candidate.savedSpringProfiles,
     healthCheckPath: candidate.savedHealthCheckPath,
+    mavenThreads: candidate.savedMavenThreads,
     dependsOnServiceIds: []
   }
 }
@@ -497,6 +500,22 @@ function normalizeHealthCheckPath(value: string) {
   }
 
   return trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`
+}
+
+function normalizeMavenThreads(value: string) {
+  const trimmedValue = value.trim()
+
+  if (trimmedValue.length === 0) {
+    return DEFAULT_MAVEN_THREADS
+  }
+
+  const normalizedValue = trimmedValue.toUpperCase()
+
+  if (!/^(?:[1-9]\d*|[1-9]\d*(?:\.\d+)?C|0?\.\d+C)$/.test(normalizedValue)) {
+    throw new Error(text.value.serviceConfigMavenThreadsInvalid)
+  }
+
+  return normalizedValue
 }
 
 function normalizeDependencyIds(serviceId: string, dependsOnServiceIds: string[]) {
@@ -619,6 +638,7 @@ function createServiceLaunchRequest(modulePath: string, artifactId: string, cand
     programArgs: launchConfig.programArgs.trim(),
     springProfiles: normalizeProfiles(launchConfig.springProfiles),
     healthCheckPath: normalizeHealthCheckPath(launchConfig.healthCheckPath),
+    mavenThreads: normalizeMavenThreads(launchConfig.mavenThreads),
     dependsOnServiceIds: normalizeDependencyIds(serviceId, launchConfig.dependsOnServiceIds)
   } satisfies ServiceLaunchRequest
 }
@@ -1747,6 +1767,16 @@ const closeActionOptions = computed(() => [
                         {{ option.label }}
                       </option>
                     </select>
+                  </label>
+
+                  <label class="settings-field">
+                    <span>{{ text.serviceConfigMavenThreads }}</span>
+                    <input
+                      v-model="getLaunchConfig(module.artifactId, candidate).mavenThreads"
+                      type="text"
+                      :placeholder="text.serviceConfigMavenThreadsPlaceholder"
+                    />
+                    <small>{{ text.serviceConfigMavenThreadsHint }}</small>
                   </label>
 
                   <label class="settings-field">

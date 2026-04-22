@@ -19,7 +19,7 @@ const tempRoot = path.join(os.tmpdir(), `MicroLight Console 验收-${Date.now()}
 const tempProjectPath = path.join(tempRoot, '示例 项目')
 
 const { createServer } = await import('../apps/server/dist/index.js')
-const { checkServiceHealth } = await import('../apps/server/dist/service-runtime.js')
+const { checkServiceHealth, createBuildArgs } = await import('../apps/server/dist/service-runtime.js')
 const { resolveServiceGroupLaunchOrder } = await import('../apps/server/dist/service-group-runtime.js')
 const app = await createServer()
 const results = []
@@ -170,6 +170,27 @@ try {
     return `依赖排序 ${orderedIds.join(' -> ')}`
   })
 
+  await check('maven-thread-args', 'Maven 线程参数生成', async () => {
+    const mvndArgs = createBuildArgs(
+      createVerifyServiceRequest('demo', 'com.example.DemoApplication', [], '1C'),
+      'mvnd'
+    )
+    const mavenArgs = createBuildArgs(
+      createVerifyServiceRequest('demo', 'com.example.DemoApplication', [], '2'),
+      'mvn'
+    )
+    const defaultMvndArgs = createBuildArgs(
+      createVerifyServiceRequest('demo', 'com.example.DemoApplication', [], ''),
+      'mvnd'
+    )
+
+    assert(mvndArgs.includes('-T1C'), `mvnd 线程参数异常：${mvndArgs.join(' ')}`)
+    assert(mavenArgs.includes('-T2'), `mvn 线程参数异常：${mavenArgs.join(' ')}`)
+    assert(defaultMvndArgs.includes('-T1'), `mvnd 默认保护模式异常：${defaultMvndArgs.join(' ')}`)
+
+    return `mvnd=${mvndArgs.join(' ')}，mvn=${mavenArgs.join(' ')}`
+  })
+
   await check('service-group-persistence', '服务组持久化配置', async () => {
     const scanPayload = await postJson('/api/projects/scan', {
       rootPath: sampleSingleModulePath
@@ -198,6 +219,7 @@ try {
             programArgs: service.savedProgramArgs,
             springProfiles: service.savedSpringProfiles,
             healthCheckPath: '/ready',
+            mavenThreads: '1C',
             dependsOnServiceIds: []
           }
         ]
@@ -211,6 +233,7 @@ try {
       assert(savedGroup.startupIntervalMs === 1500, `启动间隔保存异常：${savedGroup.startupIntervalMs}`)
       assert(savedGroup.services.length === 1, `期望保存 1 个服务，实际 ${savedGroup.services.length}`)
       assert(savedGroup.services[0].healthCheckPath === '/ready', '服务组健康检查路径未正确保存')
+      assert(savedGroup.services[0].mavenThreads === '1C', '服务组 Maven 线程参数未正确保存')
       assert(savedGroup.services[0].dependsOnServiceIds.length === 0, '服务组依赖关系未正确保存')
 
       const listResponse = await app.inject(`/api/service-groups/saved?rootPath=${encodeURIComponent(sampleSingleModulePath)}`)
@@ -330,7 +353,7 @@ function findCheck(report, id) {
   return item
 }
 
-function createVerifyServiceRequest(artifactId, mainClass, dependsOnServiceIds) {
+function createVerifyServiceRequest(artifactId, mainClass, dependsOnServiceIds, mavenThreads = '1') {
   return {
     rootPath: sampleSingleModulePath,
     modulePath: sampleSingleModulePath,
@@ -343,6 +366,7 @@ function createVerifyServiceRequest(artifactId, mainClass, dependsOnServiceIds) 
     programArgs: '',
     springProfiles: '',
     healthCheckPath: '/actuator/health',
+    mavenThreads,
     dependsOnServiceIds
   }
 }
