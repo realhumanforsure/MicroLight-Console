@@ -133,6 +133,12 @@ interface LocaleMessages {
   serviceGroupTitle: string
   serviceGroupLaunchAll: string
   serviceGroupStopAll: string
+  serviceGroupSaveCurrent: string
+  serviceGroupSavedTitle: string
+  serviceGroupLaunchSaved: string
+  serviceGroupDeleteSaved: string
+  serviceGroupSavedMessage: string
+  serviceGroupDeletedMessage: string
   serviceGroupName: string
   serviceGroupServiceCount: string
   serviceGroupUpdatedAt: string
@@ -314,6 +320,12 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceGroupTitle: '服务组编排',
     serviceGroupLaunchAll: '顺序启动服务组',
     serviceGroupStopAll: '停止服务组',
+    serviceGroupSaveCurrent: '保存当前服务组',
+    serviceGroupSavedTitle: '已保存服务组',
+    serviceGroupLaunchSaved: '启动已保存组',
+    serviceGroupDeleteSaved: '删除',
+    serviceGroupSavedMessage: '服务组已保存。',
+    serviceGroupDeletedMessage: '服务组已删除。',
     serviceGroupName: '服务组',
     serviceGroupServiceCount: '服务数',
     serviceGroupUpdatedAt: '更新时间',
@@ -491,6 +503,12 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceGroupTitle: 'Service Group Orchestration',
     serviceGroupLaunchAll: 'Start Service Group',
     serviceGroupStopAll: 'Stop Service Group',
+    serviceGroupSaveCurrent: 'Save Current Group',
+    serviceGroupSavedTitle: 'Saved Service Groups',
+    serviceGroupLaunchSaved: 'Launch Saved Group',
+    serviceGroupDeleteSaved: 'Delete',
+    serviceGroupSavedMessage: 'Service group saved.',
+    serviceGroupDeletedMessage: 'Service group deleted.',
     serviceGroupName: 'Group',
     serviceGroupServiceCount: 'Services',
     serviceGroupUpdatedAt: 'Updated At',

@@ -314,6 +314,10 @@ h1 {
   word-break: break-all;
 }
 
+.service-group-item--saved {
+  grid-template-columns: minmax(160px, 0.7fr) minmax(120px, 0.4fr) minmax(220px, 1fr);
+}
+
 .workspace-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);

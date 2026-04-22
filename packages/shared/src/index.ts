@@ -176,6 +176,17 @@ export interface ServiceGroupLaunchRequest {
   stopOnFailure: boolean
 }
 
+export interface ServiceGroupSaveRequest {
+  groupName: string
+  rootPath: string
+  services: ServiceLaunchRequest[]
+  stopOnFailure: boolean
+}
+
+export interface ServiceGroupDeleteRequest {
+  groupId: string
+}
+
 export interface ServiceGroupStopRequest {
   groupId: string
 }
@@ -200,8 +211,27 @@ export interface ServiceGroupInstance {
   services: ServiceGroupItemState[]
 }
 
+export interface SavedServiceGroupService extends ServiceLaunchRequest {
+  serviceId: string
+  orderIndex: number
+}
+
+export interface SavedServiceGroup {
+  groupId: string
+  groupName: string
+  rootPath: string
+  stopOnFailure: boolean
+  createdAt: string
+  updatedAt: string
+  services: SavedServiceGroupService[]
+}
+
 export interface ServiceGroupsResponse {
   groups: ServiceGroupInstance[]
+}
+
+export interface SavedServiceGroupsResponse {
+  groups: SavedServiceGroup[]
 }
 
 export interface ServiceStreamEvent {

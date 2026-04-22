@@ -143,6 +143,66 @@ try {
     return `服务组列表可读，空服务组保护生效`
   })
 
+  await check('service-group-persistence', '服务组持久化配置', async () => {
+    const scanPayload = await postJson('/api/projects/scan', {
+      rootPath: sampleSingleModulePath
+    })
+    const module = scanPayload.modules[0]
+    const service = module.serviceCandidates[0]
+    const groupName = `verify-group-${Date.now()}`
+    const saveResponse = await app.inject({
+      method: 'POST',
+      url: '/api/service-groups/saved',
+      payload: {
+        groupName,
+        rootPath: sampleSingleModulePath,
+        stopOnFailure: true,
+        services: [
+          {
+            rootPath: sampleSingleModulePath,
+            modulePath: module.modulePath,
+            artifactId: module.artifactId,
+            mainClass: service.mainClass,
+            runtimePort: service.defaultPort,
+            buildToolPreference: service.savedBuildToolPreference,
+            skipTests: service.savedSkipTests,
+            jvmArgs: service.savedJvmArgs,
+            programArgs: service.savedProgramArgs,
+            springProfiles: service.savedSpringProfiles
+          }
+        ]
+      }
+    })
+    const savedGroup = saveResponse.json()
+
+    try {
+      assert(saveResponse.statusCode === 200, `保存服务组返回 ${saveResponse.statusCode}`)
+      assert(savedGroup.groupName === groupName, '服务组名称未正确保存')
+      assert(savedGroup.services.length === 1, `期望保存 1 个服务，实际 ${savedGroup.services.length}`)
+
+      const listResponse = await app.inject(`/api/service-groups/saved?rootPath=${encodeURIComponent(sampleSingleModulePath)}`)
+      const listPayload = listResponse.json()
+
+      assert(listResponse.statusCode === 200, `读取服务组返回 ${listResponse.statusCode}`)
+      assert(
+        listPayload.groups.some((group) => group.groupId === savedGroup.groupId),
+        '保存后的服务组没有出现在列表中'
+      )
+
+      return `服务组 ${groupName} 可保存并读取`
+    } finally {
+      if (savedGroup.groupId) {
+        await app.inject({
+          method: 'POST',
+          url: '/api/service-groups/saved/delete',
+          payload: {
+            groupId: savedGroup.groupId
+          }
+        })
+      }
+    }
+  })
+
   await check('service-health-probe', '服务健康检查探测', async () => {
     const probeServer = http.createServer((request, response) => {
       if (request.url === '/actuator/health') {

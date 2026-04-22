@@ -24,9 +24,12 @@ import {
   type RecentProject,
   type RuntimeDetectionRequest,
   type RuntimeDetectionResult,
+  type SavedServiceGroup,
+  type SavedServiceGroupsResponse,
   type ServiceCandidate,
   type ServiceGroupInstance,
   type ServiceGroupLaunchRequest,
+  type ServiceGroupSaveRequest,
   type ServiceInstanceState,
   type ServiceLaunchRequest,
   type ServiceStreamEvent
@@ -51,6 +54,7 @@ const projectScan = ref<ProjectScanResult | null>(null)
 const runtimeDetection = ref<RuntimeDetectionResult | null>(null)
 const serviceInstances = ref<Record<string, ServiceInstanceState>>({})
 const serviceGroups = ref<ServiceGroupInstance[]>([])
+const savedServiceGroups = ref<SavedServiceGroup[]>([])
 const serviceLaunchConfigs = ref<Record<string, ServiceLaunchConfig>>({})
 const locale = ref<Locale>(DEFAULT_LOCALE)
 const appSettings = ref<AppSettings>({
@@ -72,6 +76,7 @@ const errorMessage = ref('')
 const scanErrorMessage = ref('')
 const runtimeErrorMessage = ref('')
 const settingsMessage = ref('')
+const serviceGroupMessage = ref('')
 const serviceActionState = ref<Record<string, boolean>>({})
 const serviceGroupActionRunning = ref(false)
 const text = computed(() => messages[locale.value])
@@ -128,6 +133,7 @@ watch(
 watch(projectScan, (scanResult) => {
   if (!scanResult) {
     serviceLaunchConfigs.value = {}
+    savedServiceGroups.value = []
     return
   }
 
@@ -367,6 +373,7 @@ async function scanProject() {
     settingsMessage.value = ''
     await loadAppState()
     await refreshPreflight()
+    await loadSavedServiceGroups()
   } catch (error) {
     scanErrorMessage.value = error instanceof Error ? error.message : 'Unknown scan error'
     projectScan.value = null
@@ -582,6 +589,18 @@ function createServiceLaunchRequest(modulePath: string, artifactId: string, cand
   } satisfies ServiceLaunchRequest
 }
 
+function createScannedServiceLaunchRequests() {
+  if (!projectScan.value) {
+    return []
+  }
+
+  return projectScan.value.modules.flatMap((module) =>
+    module.serviceCandidates.map((candidate) =>
+      createServiceLaunchRequest(module.modulePath, module.artifactId, candidate)
+    )
+  )
+}
+
 async function launchService(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
   const serviceId = getServiceId(artifactId, candidate.mainClass)
   serviceActionState.value[serviceId] = true
@@ -627,11 +646,7 @@ async function launchScannedServiceGroup() {
   runtimeErrorMessage.value = ''
 
   try {
-    const services = projectScan.value.modules.flatMap((module) =>
-      module.serviceCandidates.map((candidate) =>
-        createServiceLaunchRequest(module.modulePath, module.artifactId, candidate)
-      )
-    )
+    const services = createScannedServiceLaunchRequests()
     const requestBody: ServiceGroupLaunchRequest = {
       groupName: projectScan.value.artifactId,
       services,
@@ -660,6 +675,138 @@ async function launchScannedServiceGroup() {
   } finally {
     serviceGroupActionRunning.value = false
   }
+}
+
+async function saveScannedServiceGroup() {
+  if (!projectScan.value || scannedServiceCount.value === 0) {
+    runtimeErrorMessage.value = text.value.serviceGroupEmpty
+    return
+  }
+
+  serviceGroupActionRunning.value = true
+  runtimeErrorMessage.value = ''
+  serviceGroupMessage.value = ''
+
+  try {
+    const requestBody: ServiceGroupSaveRequest = {
+      groupName: projectScan.value.artifactId,
+      rootPath: selectedProjectPath.value,
+      services: createScannedServiceLaunchRequests(),
+      stopOnFailure: true
+    }
+
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/saved`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Service group save failed: ${response.status}`)
+    }
+
+    const savedGroup = (await response.json()) as SavedServiceGroup
+    savedServiceGroups.value = [
+      savedGroup,
+      ...savedServiceGroups.value.filter((group) => group.groupId !== savedGroup.groupId)
+    ]
+    serviceGroupMessage.value = text.value.serviceGroupSavedMessage
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown service group error'
+  } finally {
+    serviceGroupActionRunning.value = false
+  }
+}
+
+async function launchSavedServiceGroup(group: SavedServiceGroup) {
+  serviceGroupActionRunning.value = true
+  runtimeErrorMessage.value = ''
+  serviceGroupMessage.value = ''
+
+  try {
+    const requestBody: ServiceGroupLaunchRequest = {
+      groupName: group.groupName,
+      services: group.services,
+      stopOnFailure: group.stopOnFailure
+    }
+
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/launch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Saved service group launch failed: ${response.status}`)
+    }
+
+    const launchedGroup = (await response.json()) as ServiceGroupInstance
+    serviceGroups.value = [
+      launchedGroup,
+      ...serviceGroups.value.filter((item) => item.groupId !== launchedGroup.groupId)
+    ]
+    selectedLogServiceId.value =
+      launchedGroup.services.find((service) => service.instance)?.serviceId ?? selectedLogServiceId.value
+    await refreshInstances()
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown service group error'
+  } finally {
+    serviceGroupActionRunning.value = false
+  }
+}
+
+async function deleteSavedServiceGroup(groupId: string) {
+  serviceGroupActionRunning.value = true
+  runtimeErrorMessage.value = ''
+  serviceGroupMessage.value = ''
+
+  try {
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/saved/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ groupId })
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Saved service group delete failed: ${response.status}`)
+    }
+
+    savedServiceGroups.value = savedServiceGroups.value.filter((group) => group.groupId !== groupId)
+    serviceGroupMessage.value = text.value.serviceGroupDeletedMessage
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown service group error'
+  } finally {
+    serviceGroupActionRunning.value = false
+  }
+}
+
+async function loadSavedServiceGroups() {
+  const rootPath = selectedProjectPath.value.trim()
+
+  if (!rootPath) {
+    savedServiceGroups.value = []
+    return
+  }
+
+  const response = await fetch(
+    `${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/saved?rootPath=${encodeURIComponent(rootPath)}`
+  )
+
+  if (!response.ok) {
+    return
+  }
+
+  const payload = (await response.json()) as SavedServiceGroupsResponse
+  savedServiceGroups.value = payload.groups
 }
 
 async function stopLastServiceGroup() {
@@ -1250,6 +1397,14 @@ const closeActionOptions = computed(() => [
           <button
             class="secondary-button"
             type="button"
+            :disabled="serviceGroupActionRunning || scannedServiceCount === 0"
+            @click="saveScannedServiceGroup"
+          >
+            {{ text.serviceGroupSaveCurrent }}
+          </button>
+          <button
+            class="secondary-button"
+            type="button"
             :disabled="serviceGroupActionRunning || !lastServiceGroup"
             @click="stopLastServiceGroup"
           >
@@ -1275,6 +1430,57 @@ const closeActionOptions = computed(() => [
       <div class="project-path">
         <span>{{ text.selectedPath }}</span>
         <strong>{{ selectedProjectPath || text.noProjectSelected }}</strong>
+      </div>
+
+      <div
+        v-if="savedServiceGroups.length > 0 || serviceGroupMessage"
+        class="service-group-panel"
+      >
+        <div class="project-panel__subheader">
+          <h3>{{ text.serviceGroupSavedTitle }}</h3>
+          <span class="pill ghost">
+            {{ text.serviceGroupServiceCount }}: {{ savedServiceGroups.length }}
+          </span>
+        </div>
+
+        <p
+          v-if="serviceGroupMessage"
+          class="muted"
+        >
+          {{ serviceGroupMessage }}
+        </p>
+
+        <div
+          v-if="savedServiceGroups.length > 0"
+          class="service-group-list"
+        >
+          <article
+            v-for="group in savedServiceGroups"
+            :key="group.groupId"
+            class="service-group-item service-group-item--saved"
+          >
+            <strong>{{ group.groupName }}</strong>
+            <span>{{ text.serviceGroupServiceCount }}: {{ group.services.length }}</span>
+            <div class="actions">
+              <button
+                class="secondary-button"
+                type="button"
+                :disabled="serviceGroupActionRunning"
+                @click="launchSavedServiceGroup(group)"
+              >
+                {{ text.serviceGroupLaunchSaved }}
+              </button>
+              <button
+                class="secondary-button"
+                type="button"
+                :disabled="serviceGroupActionRunning"
+                @click="deleteSavedServiceGroup(group.groupId)"
+              >
+                {{ text.serviceGroupDeleteSaved }}
+              </button>
+            </div>
+          </article>
+        </div>
       </div>
 
       <div

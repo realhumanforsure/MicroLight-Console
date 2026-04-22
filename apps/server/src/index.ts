@@ -15,7 +15,10 @@ import {
   type ProjectScanRequest,
   type ReleaseReadinessResponse,
   type RuntimeDetectionRequest,
+  type SavedServiceGroupsResponse,
+  type ServiceGroupDeleteRequest,
   type ServiceGroupLaunchRequest,
+  type ServiceGroupSaveRequest,
   type ServiceGroupStopRequest,
   type ServiceGroupsResponse,
   type ServiceInstancesResponse,
@@ -147,6 +150,44 @@ export async function createServer() {
   app.get('/api/service-groups', async (): Promise<ServiceGroupsResponse> => {
     return {
       groups: serviceGroupRuntimeManager.getGroups()
+    }
+  })
+
+  app.get<{ Querystring: { rootPath?: string } }>(
+    '/api/service-groups/saved',
+    async (request): Promise<SavedServiceGroupsResponse> => {
+      return {
+        groups: request.query.rootPath
+          ? persistenceService.getSavedServiceGroups(request.query.rootPath)
+          : []
+      }
+    }
+  )
+
+  app.post<{ Body: ServiceGroupSaveRequest }>('/api/service-groups/saved', async (request, reply) => {
+    try {
+      return persistenceService.saveServiceGroup(request.body)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to save service group'
+      }
+    }
+  })
+
+  app.post<{ Body: ServiceGroupDeleteRequest }>('/api/service-groups/saved/delete', async (request, reply) => {
+    try {
+      persistenceService.deleteServiceGroup(request.body.groupId)
+      return {
+        ok: true
+      }
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to delete service group'
+      }
     }
   })
 
