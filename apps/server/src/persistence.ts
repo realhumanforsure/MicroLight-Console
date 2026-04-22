@@ -6,6 +6,7 @@ import { mkdirSync } from 'node:fs'
 import {
   DEFAULT_BUILD_TOOL_PREFERENCE,
   DEFAULT_CLOSE_ACTION,
+  DEFAULT_HEALTH_CHECK_PATH,
   DEFAULT_JVM_ARGS,
   DEFAULT_PROGRAM_ARGS,
   DEFAULT_SKIP_TESTS,
@@ -191,6 +192,7 @@ class PersistenceService {
             jvm_args,
             program_args,
             spring_profiles,
+            health_check_path,
             updated_at
           )
           VALUES (
@@ -204,6 +206,7 @@ class PersistenceService {
             @jvmArgs,
             @programArgs,
             @springProfiles,
+            @healthCheckPath,
             @updatedAt
           )
           ON CONFLICT(service_id)
@@ -217,6 +220,7 @@ class PersistenceService {
             jvm_args = excluded.jvm_args,
             program_args = excluded.program_args,
             spring_profiles = excluded.spring_profiles,
+            health_check_path = excluded.health_check_path,
             updated_at = excluded.updated_at
         `
       )
@@ -231,7 +235,12 @@ class PersistenceService {
     serviceId: string
   ): Pick<
     ServicePreference,
-    'buildToolPreference' | 'skipTests' | 'jvmArgs' | 'programArgs' | 'springProfiles'
+    | 'buildToolPreference'
+    | 'skipTests'
+    | 'jvmArgs'
+    | 'programArgs'
+    | 'springProfiles'
+    | 'healthCheckPath'
   > | null {
     const row = this.db
       .prepare(
@@ -241,7 +250,8 @@ class PersistenceService {
             skip_tests AS skipTests,
             jvm_args AS jvmArgs,
             program_args AS programArgs,
-            spring_profiles AS springProfiles
+            spring_profiles AS springProfiles,
+            health_check_path AS healthCheckPath
           FROM service_preferences
           WHERE service_id = ?
         `
@@ -253,6 +263,7 @@ class PersistenceService {
           jvmArgs: string | null
           programArgs: string | null
           springProfiles: string | null
+          healthCheckPath: string | null
         }
       | undefined
 
@@ -265,7 +276,8 @@ class PersistenceService {
       skipTests: row.skipTests === 1,
       jvmArgs: row.jvmArgs ?? DEFAULT_JVM_ARGS,
       programArgs: row.programArgs ?? DEFAULT_PROGRAM_ARGS,
-      springProfiles: row.springProfiles ?? DEFAULT_SPRING_PROFILES
+      springProfiles: row.springProfiles ?? DEFAULT_SPRING_PROFILES,
+      healthCheckPath: row.healthCheckPath ?? DEFAULT_HEALTH_CHECK_PATH
     }
   }
 
@@ -373,7 +385,8 @@ class PersistenceService {
             skip_tests,
             jvm_args,
             program_args,
-            spring_profiles
+            spring_profiles,
+            health_check_path
           )
           VALUES (
             @groupId,
@@ -388,7 +401,8 @@ class PersistenceService {
             @skipTests,
             @jvmArgs,
             @programArgs,
-            @springProfiles
+            @springProfiles,
+            @healthCheckPath
           )
         `
       )
@@ -407,7 +421,8 @@ class PersistenceService {
           skipTests: service.skipTests ? 1 : 0,
           jvmArgs: service.jvmArgs,
           programArgs: service.programArgs,
-          springProfiles: service.springProfiles
+          springProfiles: service.springProfiles,
+          healthCheckPath: service.healthCheckPath
         })
       })
     })
@@ -455,6 +470,7 @@ class PersistenceService {
         jvm_args TEXT NOT NULL DEFAULT '',
         program_args TEXT NOT NULL DEFAULT '',
         spring_profiles TEXT NOT NULL DEFAULT '',
+        health_check_path TEXT NOT NULL DEFAULT '/actuator/health',
         updated_at TEXT NOT NULL
       );
 
@@ -483,6 +499,7 @@ class PersistenceService {
         jvm_args TEXT NOT NULL DEFAULT '',
         program_args TEXT NOT NULL DEFAULT '',
         spring_profiles TEXT NOT NULL DEFAULT '',
+        health_check_path TEXT NOT NULL DEFAULT '/actuator/health',
         PRIMARY KEY(group_id, service_id),
         FOREIGN KEY(group_id) REFERENCES service_groups(group_id) ON DELETE CASCADE
       );
@@ -491,7 +508,20 @@ class PersistenceService {
     this.ensureColumn('service_preferences', 'jvm_args', "TEXT NOT NULL DEFAULT ''")
     this.ensureColumn('service_preferences', 'program_args', "TEXT NOT NULL DEFAULT ''")
     this.ensureColumn('service_preferences', 'spring_profiles', "TEXT NOT NULL DEFAULT ''")
+    this.ensureColumn(
+      'service_preferences',
+      'health_check_path',
+      `TEXT NOT NULL DEFAULT '${DEFAULT_HEALTH_CHECK_PATH}'`
+    )
     this.ensureColumn('service_groups', 'startup_interval_ms', 'INTEGER NOT NULL DEFAULT 5000')
+    this.ensureColumn('service_group_services', 'jvm_args', "TEXT NOT NULL DEFAULT ''")
+    this.ensureColumn('service_group_services', 'program_args', "TEXT NOT NULL DEFAULT ''")
+    this.ensureColumn('service_group_services', 'spring_profiles', "TEXT NOT NULL DEFAULT ''")
+    this.ensureColumn(
+      'service_group_services',
+      'health_check_path',
+      `TEXT NOT NULL DEFAULT '${DEFAULT_HEALTH_CHECK_PATH}'`
+    )
   }
 
   private ensureColumn(tableName: string, columnName: string, definition: string) {
@@ -553,7 +583,8 @@ class PersistenceService {
             skip_tests AS skipTests,
             jvm_args AS jvmArgs,
             program_args AS programArgs,
-            spring_profiles AS springProfiles
+            spring_profiles AS springProfiles,
+            health_check_path AS healthCheckPath
           FROM service_group_services
           WHERE group_id = ?
           ORDER BY order_index ASC
@@ -563,7 +594,8 @@ class PersistenceService {
 
     return rows.map((row) => ({
       ...row,
-      skipTests: row.skipTests === 1
+      skipTests: row.skipTests === 1,
+      healthCheckPath: row.healthCheckPath ?? DEFAULT_HEALTH_CHECK_PATH
     }))
   }
 }

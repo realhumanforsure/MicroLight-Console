@@ -204,7 +204,8 @@ export async function createServer() {
           skipTests: service.skipTests,
           jvmArgs: service.jvmArgs,
           programArgs: service.programArgs,
-          springProfiles: service.springProfiles
+          springProfiles: service.springProfiles,
+          healthCheckPath: service.healthCheckPath
         })
       }
 
@@ -242,7 +243,8 @@ export async function createServer() {
         skipTests: request.body.skipTests,
         jvmArgs: request.body.jvmArgs,
         programArgs: request.body.programArgs,
-        springProfiles: request.body.springProfiles
+        springProfiles: request.body.springProfiles,
+        healthCheckPath: request.body.healthCheckPath
       })
       return await serviceRuntimeManager.launchService(request.body)
     } catch (error) {

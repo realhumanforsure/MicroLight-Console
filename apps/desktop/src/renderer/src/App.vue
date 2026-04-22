@@ -4,6 +4,7 @@ import {
   APP_NAME,
   DEFAULT_BUILD_TOOL_PREFERENCE,
   DEFAULT_CLOSE_ACTION,
+  DEFAULT_HEALTH_CHECK_PATH,
   DEFAULT_SERVER_URL,
   DEFAULT_SKIP_TESTS,
   DEFAULT_TRAY_ENABLED,
@@ -43,6 +44,7 @@ interface ServiceLaunchConfig {
   jvmArgs: string
   programArgs: string
   springProfiles: string
+  healthCheckPath: string
 }
 
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
@@ -429,7 +431,8 @@ function createLaunchConfig(candidate: ServiceCandidate): ServiceLaunchConfig {
     skipTests: candidate.savedSkipTests,
     jvmArgs: candidate.savedJvmArgs,
     programArgs: candidate.savedProgramArgs,
-    springProfiles: candidate.savedSpringProfiles
+    springProfiles: candidate.savedSpringProfiles,
+    healthCheckPath: candidate.savedHealthCheckPath
   }
 }
 
@@ -482,6 +485,16 @@ function normalizeProfiles(value: string) {
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
     .join(',')
+}
+
+function normalizeHealthCheckPath(value: string) {
+  const trimmedValue = value.trim()
+
+  if (trimmedValue.length === 0) {
+    return DEFAULT_HEALTH_CHECK_PATH
+  }
+
+  return trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`
 }
 
 function getCloseActionLabel(closeAction: DesktopCloseAction, trayEnabled: boolean) {
@@ -597,7 +610,8 @@ function createServiceLaunchRequest(modulePath: string, artifactId: string, cand
     skipTests: launchConfig.skipTests,
     jvmArgs: launchConfig.jvmArgs.trim(),
     programArgs: launchConfig.programArgs.trim(),
-    springProfiles: normalizeProfiles(launchConfig.springProfiles)
+    springProfiles: normalizeProfiles(launchConfig.springProfiles),
+    healthCheckPath: normalizeHealthCheckPath(launchConfig.healthCheckPath)
   } satisfies ServiceLaunchRequest
 }
 
@@ -1712,6 +1726,15 @@ const closeActionOptions = computed(() => [
                       v-model="getLaunchConfig(module.artifactId, candidate).springProfiles"
                       type="text"
                       :placeholder="text.serviceConfigProfilesPlaceholder"
+                    />
+                  </label>
+
+                  <label class="settings-field">
+                    <span>{{ text.serviceConfigHealthPath }}</span>
+                    <input
+                      v-model="getLaunchConfig(module.artifactId, candidate).healthCheckPath"
+                      type="text"
+                      :placeholder="text.serviceConfigHealthPathPlaceholder"
                     />
                   </label>
 

@@ -48,6 +48,7 @@ try {
       service.mainClass === 'com.example.demo.SampleMavenAppApplication',
       `启动类不匹配：${service.mainClass}`
     )
+    assert(service.savedHealthCheckPath === '/actuator/health', `默认健康路径异常：${service.savedHealthCheckPath}`)
 
     return `识别 ${payload.moduleCount} 个模块、${services.length} 个启动类`
   })
@@ -170,7 +171,8 @@ try {
             skipTests: service.savedSkipTests,
             jvmArgs: service.savedJvmArgs,
             programArgs: service.savedProgramArgs,
-            springProfiles: service.savedSpringProfiles
+            springProfiles: service.savedSpringProfiles,
+            healthCheckPath: '/ready'
           }
         ]
       }
@@ -182,6 +184,7 @@ try {
       assert(savedGroup.groupName === groupName, '服务组名称未正确保存')
       assert(savedGroup.startupIntervalMs === 1500, `启动间隔保存异常：${savedGroup.startupIntervalMs}`)
       assert(savedGroup.services.length === 1, `期望保存 1 个服务，实际 ${savedGroup.services.length}`)
+      assert(savedGroup.services[0].healthCheckPath === '/ready', '服务组健康检查路径未正确保存')
 
       const listResponse = await app.inject(`/api/service-groups/saved?rootPath=${encodeURIComponent(sampleSingleModulePath)}`)
       const listPayload = listResponse.json()
@@ -208,7 +211,7 @@ try {
 
   await check('service-health-probe', '服务健康检查探测', async () => {
     const probeServer = http.createServer((request, response) => {
-      if (request.url === '/actuator/health') {
+      if (request.url === '/ready') {
         response.writeHead(200, {
           'content-type': 'application/json'
         })
@@ -229,13 +232,14 @@ try {
 
       assert(address && typeof address === 'object', '无法读取健康检查模拟服务端口')
 
-      const healthy = await checkServiceHealth(address.port, true)
+      const healthy = await checkServiceHealth(address.port, true, 'ready')
       const unreachable = await checkServiceHealth(address.port, false)
 
       assert(healthy.status === 'healthy', `期望健康状态 healthy，实际 ${healthy.status}`)
+      assert(healthy.url.endsWith('/ready'), `期望使用自定义健康路径，实际 ${healthy.url}`)
       assert(unreachable.status === 'unhealthy', `期望不可达状态 unhealthy，实际 ${unreachable.status}`)
 
-      return `Actuator UP 和端口不可达分支均通过`
+      return `自定义健康路径和端口不可达分支均通过`
     } finally {
       await new Promise((resolve) => {
         probeServer.close(resolve)

@@ -104,6 +104,8 @@ interface LocaleMessages {
   serviceConfigBuildTool: string
   serviceConfigProfiles: string
   serviceConfigProfilesPlaceholder: string
+  serviceConfigHealthPath: string
+  serviceConfigHealthPathPlaceholder: string
   serviceConfigJvmArgs: string
   serviceConfigJvmArgsPlaceholder: string
   serviceConfigProgramArgs: string
@@ -294,6 +296,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceConfigBuildTool: '本次构建器',
     serviceConfigProfiles: 'Spring Profiles',
     serviceConfigProfilesPlaceholder: '例如：dev,local',
+    serviceConfigHealthPath: '健康检查路径',
+    serviceConfigHealthPathPlaceholder: '默认：/actuator/health',
     serviceConfigJvmArgs: 'JVM 参数',
     serviceConfigJvmArgsPlaceholder: '例如：-Xms256m -Xmx512m',
     serviceConfigProgramArgs: '程序参数',
@@ -480,6 +484,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceConfigBuildTool: 'Builder for This Run',
     serviceConfigProfiles: 'Spring Profiles',
     serviceConfigProfilesPlaceholder: 'For example: dev,local',
+    serviceConfigHealthPath: 'Health Check Path',
+    serviceConfigHealthPathPlaceholder: 'Default: /actuator/health',
     serviceConfigJvmArgs: 'JVM Arguments',
     serviceConfigJvmArgsPlaceholder: 'For example: -Xms256m -Xmx512m',
     serviceConfigProgramArgs: 'Program Arguments',

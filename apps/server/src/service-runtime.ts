@@ -12,6 +12,7 @@ import type {
   ServiceLaunchRequest,
   ServiceStatus
 } from '@microlight/shared'
+import { DEFAULT_HEALTH_CHECK_PATH } from '@microlight/shared'
 import { resolveBuildCommand, runStreamingCommand } from './runtime-tools.js'
 
 const MAX_LOG_LINES = 200
@@ -304,7 +305,11 @@ class ServiceRuntimeManager {
         }
 
         instance.state.portReachable = await checkPortReachable(instance.state.runtimePort)
-        const health = await checkServiceHealth(instance.state.runtimePort, instance.state.portReachable)
+        const health = await checkServiceHealth(
+          instance.state.runtimePort,
+          instance.state.portReachable,
+          instance.lastLaunchRequest?.healthCheckPath
+        )
         instance.state.healthStatus = health.status
         instance.state.healthUrl = health.url
         instance.state.healthDetail = health.detail
@@ -628,7 +633,11 @@ async function checkPortReachable(port: number | null) {
   })
 }
 
-export async function checkServiceHealth(port: number | null, portReachable: boolean) {
+export async function checkServiceHealth(
+  port: number | null,
+  portReachable: boolean,
+  healthCheckPath = DEFAULT_HEALTH_CHECK_PATH
+) {
   if (port === null) {
     return createHealthResult('unknown', null, 'No runtime port is configured.')
   }
@@ -637,7 +646,8 @@ export async function checkServiceHealth(port: number | null, portReachable: boo
     return createHealthResult('unhealthy', null, `Port ${port} is not reachable.`)
   }
 
-  const healthUrl = `http://127.0.0.1:${port}/actuator/health`
+  const normalizedHealthPath = normalizeHealthCheckPath(healthCheckPath)
+  const healthUrl = `http://127.0.0.1:${port}${normalizedHealthPath}`
 
   try {
     const response = await fetch(healthUrl, {
@@ -645,7 +655,7 @@ export async function checkServiceHealth(port: number | null, portReachable: boo
     })
 
     if (response.status === 404) {
-      return createHealthResult('unknown', healthUrl, 'Actuator health endpoint was not found, but the port is reachable.')
+      return createHealthResult('unknown', healthUrl, 'Health endpoint was not found, but the port is reachable.')
     }
 
     if (!response.ok) {
@@ -678,4 +688,14 @@ function createHealthResult(status: ServiceHealthStatus, url: string | null, det
     url,
     detail
   }
+}
+
+function normalizeHealthCheckPath(input: string) {
+  const trimmedInput = input.trim()
+
+  if (trimmedInput.length === 0) {
+    return DEFAULT_HEALTH_CHECK_PATH
+  }
+
+  return trimmedInput.startsWith('/') ? trimmedInput : `/${trimmedInput}`
 }

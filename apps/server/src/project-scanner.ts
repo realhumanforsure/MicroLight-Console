@@ -3,6 +3,7 @@ import path from 'node:path'
 import { XMLParser } from 'fast-xml-parser'
 import {
   DEFAULT_BUILD_TOOL_PREFERENCE,
+  DEFAULT_HEALTH_CHECK_PATH,
   DEFAULT_JVM_ARGS,
   DEFAULT_PROGRAM_ARGS,
   DEFAULT_SKIP_TESTS,
@@ -251,6 +252,7 @@ function resolveSavedPreference(artifactId: string, className: string, packageNa
     savedSkipTests: preference?.skipTests ?? DEFAULT_SKIP_TESTS,
     savedJvmArgs: preference?.jvmArgs ?? DEFAULT_JVM_ARGS,
     savedProgramArgs: preference?.programArgs ?? DEFAULT_PROGRAM_ARGS,
-    savedSpringProfiles: preference?.springProfiles ?? DEFAULT_SPRING_PROFILES
+    savedSpringProfiles: preference?.springProfiles ?? DEFAULT_SPRING_PROFILES,
+    savedHealthCheckPath: preference?.healthCheckPath ?? DEFAULT_HEALTH_CHECK_PATH
   }
 }

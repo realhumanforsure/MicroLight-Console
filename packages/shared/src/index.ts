@@ -8,6 +8,7 @@ export const DEFAULT_SKIP_TESTS = true
 export const DEFAULT_JVM_ARGS = ''
 export const DEFAULT_PROGRAM_ARGS = ''
 export const DEFAULT_SPRING_PROFILES = ''
+export const DEFAULT_HEALTH_CHECK_PATH = '/actuator/health'
 export const DEFAULT_TRAY_ENABLED = true
 export const DEFAULT_CLOSE_ACTION: DesktopCloseAction = 'hide'
 
@@ -45,6 +46,7 @@ export interface ServiceCandidate {
   savedJvmArgs: string
   savedProgramArgs: string
   savedSpringProfiles: string
+  savedHealthCheckPath: string
 }
 
 export interface ScannedModule {
@@ -129,6 +131,7 @@ export interface ServiceLaunchRequest {
   jvmArgs: string
   programArgs: string
   springProfiles: string
+  healthCheckPath: string
 }
 
 export interface ServiceStopRequest {
@@ -318,5 +321,6 @@ export interface ServicePreference {
   jvmArgs: string
   programArgs: string
   springProfiles: string
+  healthCheckPath: string
   updatedAt: string
 }
