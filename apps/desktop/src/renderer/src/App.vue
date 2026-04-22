@@ -110,19 +110,6 @@ interface RootCauseAnalysisView {
   chainItems: RootCauseChainItemView[]
 }
 
-interface ServiceDiagnosticComparisonView {
-  serviceId: string
-  artifactId: string
-  status: ServiceInstanceState['status']
-  runtimePort: number | null
-  severity: 'ok' | 'warn' | 'error'
-  buildIssueCount: number
-  runtimeIssueCount: number
-  diagnosticCount: number
-  rootCauseLabel: string | null
-  rootCauseLineNumber: number | null
-}
-
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
@@ -484,6 +471,11 @@ async function selectProjectDirectory() {
 
   if (selectedPath) {
     selectedProjectPath.value = selectedPath
+    projectScan.value = null
+    runtimeDetection.value = null
+    activeScannedServiceId.value = ''
+    selectedLogServiceId.value = ''
+    await scanProject()
   }
 }
 
@@ -574,10 +566,19 @@ function getServiceId(artifactId: string, mainClass: string) {
   return `${artifactId}:${mainClass}`
 }
 
-function getServiceDisplayName(artifactId: string) {
-  return artifactId
-    .replace(/-(biz|app)$/i, '')
-    .replace(/^sage-/, '')
+function stripCommonArtifactPrefix(artifactId: string, commonPrefix: string | null) {
+  if (!commonPrefix) {
+    return artifactId
+  }
+
+  return artifactId.startsWith(`${commonPrefix}-`) ? artifactId.slice(commonPrefix.length + 1) : artifactId
+}
+
+function getServiceDisplayName(artifactId: string, commonPrefix: string | null) {
+  const normalizedArtifactId = stripCommonArtifactPrefix(artifactId, commonPrefix)
+
+  return normalizedArtifactId
+    .replace(/-(biz|app|boot|starter)$/i, '')
     .split('-')
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -834,6 +835,21 @@ function getServiceStatusLabel(status: ServiceInstanceState['status']) {
   }
 }
 
+function getServiceStatusTone(status: ServiceInstanceState['status']) {
+  switch (status) {
+    case 'running':
+      return 'running'
+    case 'building':
+      return 'building'
+    case 'failed':
+      return 'failed'
+    case 'stopped':
+      return 'stopped'
+    default:
+      return 'idle'
+  }
+}
+
 function getServiceGroupStatusLabel(status: ServiceGroupInstance['status']) {
   switch (status) {
     case 'running':
@@ -873,6 +889,36 @@ function getServiceHealthLabel(status: ServiceInstanceState['healthStatus']) {
     default:
       return text.value.serviceHealthUnknown
   }
+}
+
+function getServiceHealthSummary(instance: ServiceInstanceState) {
+  if (
+    instance.healthStatus === 'unknown' &&
+    instance.portReachable &&
+    /health endpoint was not found/i.test(instance.healthDetail ?? '')
+  ) {
+    return text.value.serviceHealthEndpointMissing
+  }
+
+  return getServiceHealthLabel(instance.healthStatus)
+}
+
+function getServiceListTitle(service: ScannedServiceView) {
+  const instance = serviceInstances.value[service.serviceId]
+  const portSuffix = instance?.runtimePort ? `:${instance.runtimePort}` : ''
+
+  return `${service.displayName}${portSuffix}`
+}
+
+function getServiceListMeta(service: ScannedServiceView) {
+  const instance = serviceInstances.value[service.serviceId]
+
+  if (!instance) {
+    return service.module.artifactId
+  }
+
+  const healthLabel = getServiceHealthSummary(instance)
+  return `${getServiceStatusLabel(instance.status)} · ${healthLabel}`
 }
 
 function formatCpu(cpuPercent: number | null) {
@@ -1382,47 +1428,6 @@ function buildBuildFailureSummaryViews(params: {
   }
 
   return summaries.slice(0, 4)
-}
-
-function buildServiceDiagnosticComparison(instance: ServiceInstanceState): ServiceDiagnosticComparisonView {
-  const lineViews = buildLogLineViews(instance.logLines, '', 'all')
-  const diagnosticGroups = buildDiagnosticGroups(lineViews)
-  const buildSummaries = buildBuildFailureSummaryViews({
-    lineViews,
-    serviceStatus: instance.status
-  })
-  const runtimeSummaries = buildFailureSummaryViews({
-    lineViews,
-    diagnosticGroups,
-    serviceStatus: instance.status,
-    healthStatus: instance.healthStatus,
-    healthDetail: instance.healthDetail,
-    portReachable: instance.portReachable
-  })
-  const rootCauseAnalysis = buildRootCauseAnalysis(instance.logLines, diagnosticGroups[0]?.latestLineView.lineNumber ?? 0)
-  const hasError =
-    instance.status === 'failed' ||
-    buildSummaries.some((summary) => summary.severity === 'error') ||
-    runtimeSummaries.some((summary) => summary.severity === 'error')
-  const hasWarning =
-    instance.healthStatus === 'unhealthy' ||
-    instance.portReachable === false ||
-    buildSummaries.length > 0 ||
-    runtimeSummaries.length > 0 ||
-    diagnosticGroups.length > 0
-
-  return {
-    serviceId: instance.serviceId,
-    artifactId: instance.artifactId,
-    status: instance.status,
-    runtimePort: instance.runtimePort,
-    severity: hasError ? 'error' : hasWarning ? 'warn' : 'ok',
-    buildIssueCount: buildSummaries.length,
-    runtimeIssueCount: runtimeSummaries.length,
-    diagnosticCount: lineViews.filter((line) => line.isDiagnostic).length,
-    rootCauseLabel: rootCauseAnalysis.rootCause?.label ?? diagnosticGroups[0]?.label ?? null,
-    rootCauseLineNumber: rootCauseAnalysis.rootCause?.lineNumber ?? diagnosticGroups[0]?.latestLineView.lineNumber ?? null
-  }
 }
 
 async function scrollToLogLine(panel: HTMLElement | null, lineNumber: number) {
@@ -2470,35 +2475,30 @@ watch(
   }
 )
 
-const logWorkspaceServices = computed(() =>
-  Object.values(serviceInstances.value).sort((left, right) =>
-    left.artifactId.localeCompare(right.artifactId, 'zh-CN')
-  )
-)
+const logWorkspaceServices = computed(() => {
+  const scannedServiceIds = new Set(scannedServiceViews.value.map((service) => service.serviceId))
+  const instances = Object.values(serviceInstances.value)
+  const visibleInstances =
+    scannedServiceIds.size > 0
+      ? instances.filter((instance) => scannedServiceIds.has(instance.serviceId))
+      : instances
 
-const serviceDiagnosticComparisons = computed(() =>
-  logWorkspaceServices.value
-    .map((instance) => buildServiceDiagnosticComparison(instance))
-    .sort((left, right) => {
-      const severityScore = { error: 2, warn: 1, ok: 0 }
-      const severityDelta = severityScore[right.severity] - severityScore[left.severity]
+  return visibleInstances.sort((left, right) => left.artifactId.localeCompare(right.artifactId, 'zh-CN'))
+})
 
-      if (severityDelta !== 0) {
-        return severityDelta
-      }
+watch(
+  logWorkspaceServices,
+  (services) => {
+    if (services.length === 0) {
+      selectedLogServiceId.value = ''
+      return
+    }
 
-      const issueDelta =
-        right.buildIssueCount +
-        right.runtimeIssueCount +
-        right.diagnosticCount -
-        (left.buildIssueCount + left.runtimeIssueCount + left.diagnosticCount)
-
-      if (issueDelta !== 0) {
-        return issueDelta
-      }
-
-      return left.artifactId.localeCompare(right.artifactId, 'zh-CN')
-    })
+    if (!services.some((service) => service.serviceId === selectedLogServiceId.value)) {
+      selectedLogServiceId.value = services[0].serviceId
+    }
+  },
+  { deep: true }
 )
 
 const scannedServiceCount = computed(() => {
@@ -2512,6 +2512,27 @@ const scannedServiceCount = computed(() => {
   )
 })
 
+const commonArtifactPrefix = computed(() => {
+  const artifactIds = projectScan.value?.modules
+    .flatMap((module) => module.serviceCandidates.map(() => module.artifactId))
+    .filter(Boolean) ?? []
+
+  if (artifactIds.length < 2) {
+    return null
+  }
+
+  const [firstArtifactId] = artifactIds
+  const [candidatePrefix] = firstArtifactId.split('-')
+
+  if (!candidatePrefix) {
+    return null
+  }
+
+  return artifactIds.every((artifactId) => artifactId.startsWith(`${candidatePrefix}-`))
+    ? candidatePrefix
+    : null
+})
+
 const scannedServiceViews = computed<ScannedServiceView[]>(() => {
   if (!projectScan.value) {
     return []
@@ -2520,7 +2541,7 @@ const scannedServiceViews = computed<ScannedServiceView[]>(() => {
   return projectScan.value.modules.flatMap((module) =>
     module.serviceCandidates.map((candidate) => ({
       serviceId: getServiceId(module.artifactId, candidate.mainClass),
-      displayName: getServiceDisplayName(module.artifactId),
+      displayName: getServiceDisplayName(module.artifactId, commonArtifactPrefix.value),
       module,
       candidate
     }))
@@ -2539,6 +2560,11 @@ const activeScannedService = computed(() =>
 
 const activeScannedServiceInstance = computed(() =>
   activeScannedService.value ? serviceInstances.value[activeScannedService.value.serviceId] : null
+)
+
+const activeLogServiceView = computed(() =>
+  scannedServiceViews.value.find((service) => service.serviceId === selectedLogServiceId.value) ??
+  activeScannedService.value
 )
 
 const lastServiceGroup = computed(() => serviceGroups.value[0] ?? null)
@@ -2585,7 +2611,10 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
 <template>
   <main class="shell">
-    <section class="hero">
+    <section
+      v-show="activeWorkspaceTab === 'settings'"
+      class="hero"
+    >
       <div class="hero-copy">
         <p class="eyebrow">{{ text.heroEyebrow }}</p>
         <h1>{{ text.heroTitle }}</h1>
@@ -2627,60 +2656,40 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
     <section class="app-workbench">
       <aside class="workbench-sidebar">
         <div class="workbench-sidebar__header">
-          <p class="eyebrow">{{ text.workspaceSidebarTitle }}</p>
-          <strong>{{ projectScan?.artifactId ?? APP_NAME }}</strong>
-          <span>{{ selectedProjectPath || text.noProjectSelected }}</span>
-        </div>
+          <div class="workbench-project">
+            <span>{{ text.workspaceSidebarTitle }}</span>
+            <strong>{{ projectScan?.artifactId ?? APP_NAME }}</strong>
+            <em>{{ selectedProjectPath || text.noProjectSelected }}</em>
+          </div>
 
-        <div class="workbench-sidebar__actions">
-          <span>{{ text.workspaceSidebarProject }}</span>
+          <div class="workbench-sidebar__meta">
+            <span>{{ projectScan?.moduleCount ?? 0 }} {{ text.workspaceSidebarModules }}</span>
+            <span>{{ scannedServiceViews.length }} {{ text.workspaceSidebarRunnable }}</span>
+          </div>
+
           <div class="workbench-action-grid">
             <button
-              class="secondary-button"
+              class="secondary-button workbench-action-button"
               type="button"
               @click="selectProjectDirectory"
             >
               {{ text.selectProject }}
             </button>
             <button
-              class="secondary-button"
+              class="secondary-button workbench-action-button"
               type="button"
               @click="scanProject"
             >
               {{ scanning ? text.scanning : text.scanProject }}
             </button>
             <button
-              class="secondary-button"
+              class="secondary-button workbench-action-button"
               type="button"
               @click="detectRuntime"
             >
               {{ detecting ? text.servicePreparing : text.detectEnvironment }}
             </button>
           </div>
-        </div>
-
-        <div class="workbench-sidebar__meta">
-          <span class="pill ghost">
-            {{ text.workspaceSidebarModules }}: {{ projectScan?.moduleCount ?? 0 }}
-          </span>
-          <span class="pill">
-            {{ text.workspaceSidebarRunnable }}: {{ scannedServiceViews.length }}
-          </span>
-        </div>
-
-        <div
-          v-if="activeScannedService"
-          class="workbench-active-service"
-        >
-          <span>{{ text.serviceStatus }}</span>
-          <strong>{{ activeScannedService.displayName }}</strong>
-          <em>
-            {{
-              activeScannedServiceInstance
-                ? getServiceStatusLabel(activeScannedServiceInstance.status)
-                : text.serviceActiveHint
-            }}
-          </em>
         </div>
 
         <div class="workbench-service-list">
@@ -2701,18 +2710,14 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
               type="button"
               @click="selectScannedService(service.serviceId)"
             >
-              <span class="workbench-service-button__dot"></span>
-              <span>
-                <strong>{{ service.displayName }}</strong>
-                <em>{{ service.module.artifactId }}</em>
+              <span
+                class="service-state-icon"
+                :class="`service-state-icon--${getServiceStatusTone(serviceInstances[service.serviceId]?.status ?? 'idle')}`"
+              ></span>
+              <span class="workbench-service-button__body">
+                <strong>{{ getServiceListTitle(service) }}</strong>
+                <em>{{ getServiceListMeta(service) }}</em>
               </span>
-              <small>
-                {{
-                  serviceInstances[service.serviceId]
-                    ? getServiceStatusLabel(serviceInstances[service.serviceId].status)
-                    : service.candidate.className
-                }}
-              </small>
             </button>
           </template>
         </div>
@@ -2943,8 +2948,6 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
           </button>
         </div>
 
-        <p class="muted">{{ text.preflightDescription }}</p>
-
         <template v-if="preflightLoading">
           <p class="muted">{{ text.preflightChecking }}</p>
         </template>
@@ -3005,8 +3008,6 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
           </button>
         </div>
 
-        <p class="muted">{{ text.trialDescription }}</p>
-
         <template v-if="trialValidationLoading">
           <p class="muted">{{ text.trialChecking }}</p>
         </template>
@@ -3058,6 +3059,58 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
         <template v-else>
           <p class="muted">{{ text.trialEmpty }}</p>
         </template>
+      </article>
+
+      <article
+        v-if="runtimeDetection"
+        class="panel"
+      >
+        <div class="project-panel__subheader">
+          <h2>{{ text.environmentTitle }}</h2>
+          <span class="pill">
+            {{ text.environmentRecommendedTool }}:
+            {{ runtimeDetection.recommendedBuildTool ?? text.environmentUnavailable }}
+          </span>
+        </div>
+
+        <div class="preflight-list">
+          <article
+            v-for="tool in runtimeTools"
+            :key="tool.kind"
+            class="preflight-item"
+          >
+            <div class="project-panel__subheader">
+              <strong>{{ getEnvironmentToolLabel(tool) }}</strong>
+              <span
+                class="pill ghost"
+                :class="{
+                  'pill--danger': tool.available && tool.supportLevel === 'unsupported',
+                  'pill--warn': tool.available && tool.supportLevel === 'experimental'
+                }"
+              >
+                {{ tool.available ? text.environmentAvailable : text.environmentUnavailable }}
+              </span>
+            </div>
+            <p>{{ text.environmentVersion }}: {{ tool.parsedVersion ?? tool.version ?? text.runtimePending }}</p>
+            <p>{{ text.environmentSupport }}: {{ getToolSupportLabel(tool.supportLevel) }}</p>
+            <p v-if="tool.linkedMavenMajor !== null">
+              {{ text.environmentTargets }}: Maven {{ tool.linkedMavenMajor }}.x
+            </p>
+          </article>
+        </div>
+
+        <div
+          v-if="runtimeCompatibilityMatrix.length > 0"
+          class="scan-meta"
+        >
+          <div
+            v-for="row in runtimeCompatibilityMatrix"
+            :key="row.id"
+            class="pill ghost"
+          >
+            {{ row.label }} · {{ getCompatibilityMatchStateLabel(row.matchState) }}
+          </div>
+        </div>
       </article>
     </section>
 
@@ -3145,22 +3198,21 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'services'"
-      class="project-panel"
+      class="project-panel project-panel--workspace"
     >
-      <div class="project-panel__header">
-        <div>
-          <p class="eyebrow">{{ text.scannerEyebrow }}</p>
-          <h2>{{ text.scannerTitle }}</h2>
+      <div class="service-toolbar">
+        <div class="service-toolbar__title">
+          <strong>{{ activeScannedService ? getServiceListTitle(activeScannedService) : text.scannerTitle }}</strong>
+          <span>
+            {{
+              activeScannedService
+                ? `${activeScannedService.module.artifactId} · ${activeScannedService.candidate.mainClass}`
+                : (selectedProjectPath || text.noProjectSelected)
+            }}
+          </span>
         </div>
 
-        <div class="actions">
-          <button
-            class="secondary-button"
-            type="button"
-            @click="detectRuntime"
-          >
-            {{ detecting ? text.servicePreparing : text.detectEnvironment }}
-          </button>
+        <div class="actions service-toolbar__actions">
           <button
             class="secondary-button"
             type="button"
@@ -3185,29 +3237,23 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
           >
             {{ text.serviceGroupStopAll }}
           </button>
-          <button
-            class="secondary-button"
-            type="button"
-            @click="selectProjectDirectory"
-          >
-            {{ text.selectProject }}
-          </button>
-          <button
-            class="refresh-button"
-            type="button"
-            @click="scanProject"
-          >
-            {{ scanning ? text.scanning : text.scanProject }}
-          </button>
         </div>
       </div>
 
-      <div class="project-path">
-        <span>{{ text.selectedPath }}</span>
-        <strong>{{ selectedProjectPath || text.noProjectSelected }}</strong>
+      <div
+        v-if="projectScan"
+        class="service-toolbar__meta"
+      >
+        <span class="pill ghost">{{ text.rootArtifact }}: {{ projectScan.artifactId }}</span>
+        <span class="pill ghost">{{ text.moduleCount }}: {{ projectScan.moduleCount }}</span>
+        <span class="pill ghost">{{ text.workspaceSidebarRunnable }}: {{ scannedServiceViews.length }}</span>
+        <span class="pill ghost">{{ text.packaging }}: {{ projectScan.packaging }}</span>
       </div>
 
-      <div class="service-group-panel service-group-panel--compact">
+      <div
+        v-if="projectScan"
+        class="service-group-panel service-group-panel--compact service-group-panel--quiet"
+      >
         <label class="settings-field service-group-interval-field">
           <span>{{ text.serviceGroupStartupInterval }}</span>
           <input
@@ -3358,85 +3404,6 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
         {{ scanErrorMessage }}
       </p>
 
-      <div
-        v-if="runtimeDetection"
-        class="scan-result"
-      >
-        <div class="project-panel__subheader">
-          <h3>{{ text.environmentTitle }}</h3>
-          <span class="pill">
-            {{ text.environmentRecommendedTool }}:
-            {{ runtimeDetection.recommendedBuildTool ?? text.environmentUnavailable }}
-          </span>
-        </div>
-
-        <div class="preflight-list">
-          <article
-            v-for="tool in runtimeTools"
-            :key="tool.kind"
-            class="preflight-item"
-          >
-            <div class="project-panel__subheader">
-              <strong>{{ getEnvironmentToolLabel(tool) }}</strong>
-              <span
-                class="pill ghost"
-                :class="{
-                  'pill--danger': tool.available && tool.supportLevel === 'unsupported',
-                  'pill--warn': tool.available && tool.supportLevel === 'experimental'
-                }"
-              >
-                {{ tool.available ? text.environmentAvailable : text.environmentUnavailable }}
-              </span>
-            </div>
-            <p>{{ text.environmentVersion }}: {{ tool.parsedVersion ?? tool.version ?? text.runtimePending }}</p>
-            <p>{{ text.environmentSupport }}: {{ getToolSupportLabel(tool.supportLevel) }}</p>
-            <p v-if="tool.linkedMavenMajor !== null">
-              {{ text.environmentTargets }}: Maven {{ tool.linkedMavenMajor }}.x
-            </p>
-            <p>{{ getToolSupportDetail(tool) }}</p>
-          </article>
-        </div>
-
-        <div
-          v-if="runtimeCompatibilityMatrix.length > 0"
-          class="service-group-panel service-group-panel--compact"
-        >
-          <div class="project-panel__subheader">
-            <h3>{{ text.compatibilityMatrixTitle }}</h3>
-            <span class="pill ghost">
-              {{ runtimeCompatibilityMatrix.length }}
-            </span>
-          </div>
-
-          <div class="preflight-list">
-            <article
-              v-for="row in runtimeCompatibilityMatrix"
-              :key="row.id"
-              class="preflight-item"
-            >
-              <div class="project-panel__subheader">
-                <strong>{{ row.label }}</strong>
-                <span
-                  class="pill ghost"
-                  :class="{
-                    'pill--warn': row.matchState === 'recommended' || row.supportLevel === 'experimental'
-                  }"
-                >
-                  {{ getCompatibilityMatchStateLabel(row.matchState) }}
-                </span>
-              </div>
-              <p>{{ text.compatibilityMatrixVersionRange }}: {{ row.versionRange }}</p>
-              <p>{{ text.compatibilityMatrixTargets }}: {{ row.targetMaven }}</p>
-              <p>{{ text.environmentSupport }}: {{ getToolSupportLabel(row.supportLevel) }}</p>
-              <p>
-                {{ text.compatibilityMatrixDetectedTools }}:
-                {{ row.detectedTools.length > 0 ? row.detectedTools.join(' / ') : text.compatibilityMatrixNone }}
-              </p>
-            </article>
-          </div>
-        </div>
-      </div>
-
       <p
         v-if="runtimeErrorMessage"
         class="error"
@@ -3448,20 +3415,6 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
         v-if="projectScan"
         class="scan-result"
       >
-        <div class="scan-meta">
-          <div class="pill">
-            {{ text.rootArtifact }}: {{ projectScan.artifactId }}
-          </div>
-          <div class="pill">
-            {{ text.moduleCount }}: {{ projectScan.moduleCount }}
-          </div>
-          <div class="pill">
-            {{ text.packaging }}: {{ projectScan.packaging }}
-          </div>
-        </div>
-
-        <p class="muted">{{ text.serviceActiveHint }}</p>
-
         <div class="module-list">
           <p
             v-if="scannedServiceViews.length === 0"
@@ -3479,14 +3432,57 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
             "
             class="module-card"
           >
-            <div class="module-card__header">
+            <div class="service-overview">
               <div>
-                <h3>{{ activeScannedService?.displayName ?? module.artifactId }}</h3>
-                <p>{{ text.serviceModuleSource }}: {{ module.artifactId }} · {{ module.modulePath }}</p>
+                <div class="service-overview__title">
+                  <span
+                    class="service-state-icon"
+                    :class="`service-state-icon--${getServiceStatusTone(activeScannedServiceInstance?.status ?? 'idle')}`"
+                  ></span>
+                  <strong>{{ activeScannedService ? getServiceListTitle(activeScannedService) : module.artifactId }}</strong>
+                </div>
+                <p>{{ text.serviceModuleSource }}: {{ module.artifactId }}</p>
+                <span>{{ activeScannedService?.candidate.mainClass ?? text.runtimePending }}</span>
               </div>
-              <span class="pill ghost">
-                {{ module.serviceCandidates.length }} {{ text.startupClassCountSuffix }}
-              </span>
+
+              <div class="actions">
+                <button
+                  class="refresh-button"
+                  type="button"
+                  :disabled="!activeScannedService || serviceActionState[activeScannedService.serviceId]"
+                  @click="activeScannedService && launchService(module.modulePath, module.artifactId, activeScannedService.candidate)"
+                >
+                  {{
+                    activeScannedService && serviceActionState[activeScannedService.serviceId]
+                      ? text.servicePreparing
+                      : text.serviceLaunch
+                  }}
+                </button>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  :disabled="!activeScannedService || serviceActionState[activeScannedService.serviceId]"
+                  @click="activeScannedService && restartService(activeScannedService.serviceId)"
+                >
+                  {{ text.serviceRestart }}
+                </button>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  :disabled="!activeScannedService || serviceActionState[activeScannedService.serviceId]"
+                  @click="activeScannedService && stopService(activeScannedService.serviceId)"
+                >
+                  {{ text.serviceStop }}
+                </button>
+                <button
+                  v-if="activeScannedServiceInstance"
+                  class="secondary-button"
+                  type="button"
+                  @click="switchWorkspaceTab('logs')"
+                >
+                  {{ text.serviceOpenLogs }}
+                </button>
+              </div>
             </div>
 
             <ul v-if="module.serviceCandidates.length > 0">
@@ -3496,44 +3492,6 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                 v-show="getServiceId(module.artifactId, candidate.mainClass) === currentScannedServiceId"
                 class="candidate-item"
               >
-                <div class="candidate-topline">
-                  <div>
-                    <strong>{{ candidate.mainClass }}</strong>
-                    <span>{{ candidate.javaFilePath }}</span>
-                  </div>
-
-                  <div class="actions">
-                    <button
-                      class="refresh-button"
-                      type="button"
-                      :disabled="serviceActionState[getServiceId(module.artifactId, candidate.mainClass)]"
-                      @click="launchService(module.modulePath, module.artifactId, candidate)"
-                    >
-                      {{
-                        serviceActionState[getServiceId(module.artifactId, candidate.mainClass)]
-                          ? text.servicePreparing
-                          : text.serviceLaunch
-                      }}
-                    </button>
-                    <button
-                      class="secondary-button"
-                      type="button"
-                      :disabled="serviceActionState[getServiceId(module.artifactId, candidate.mainClass)]"
-                      @click="restartService(getServiceId(module.artifactId, candidate.mainClass))"
-                    >
-                      {{ text.serviceRestart }}
-                    </button>
-                    <button
-                      class="secondary-button"
-                      type="button"
-                      :disabled="serviceActionState[getServiceId(module.artifactId, candidate.mainClass)]"
-                      @click="stopService(getServiceId(module.artifactId, candidate.mainClass))"
-                    >
-                      {{ text.serviceStop }}
-                    </button>
-                  </div>
-                </div>
-
                 <div class="candidate-config-grid">
                   <div class="candidate-config-grid__header">
                     <strong>{{ text.serviceConfigTitle }}</strong>
@@ -3638,76 +3596,28 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                   v-if="serviceInstances[getServiceId(module.artifactId, candidate.mainClass)]"
                   class="service-state"
                 >
-                  <div class="scan-meta">
-                    <div class="pill">
-                      {{ text.serviceStatus }}:
-                      {{
-                        getServiceStatusLabel(
-                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].status
-                        )
-                      }}
-                    </div>
-                    <div class="pill ghost">
-                      {{ text.servicePort }}:
-                      {{
-                        formatPort(
-                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].runtimePort
-                        )
-                      }}
-                    </div>
-                    <div class="pill ghost">
-                      {{ text.servicePortReachable }}:
-                      {{
-                        serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].portReachable
-                          ? text.openPort
-                          : text.closedPort
-                      }}
-                    </div>
-                    <div
-                      class="pill ghost"
-                      :class="{
-                        'pill--danger':
-                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].healthStatus ===
-                          'unhealthy'
-                      }"
-                    >
-                      {{ text.serviceHealth }}:
-                      {{
-                        getServiceHealthLabel(
-                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].healthStatus
-                        )
-                      }}
-                    </div>
-                    <div class="pill ghost">
-                      {{ text.servicePid }}:
-                      {{
-                        serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].pid ??
-                        text.runtimePending
-                      }}
-                    </div>
-                    <div class="pill ghost">
-                      {{ text.serviceBuildTool }}:
-                      {{
-                        serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].buildTool ??
-                        text.runtimePending
-                      }}
-                    </div>
-                    <div class="pill ghost">
-                      {{ text.serviceCpu }}:
-                      {{
-                        formatCpu(
-                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].cpuPercent
-                        )
-                      }}
-                    </div>
-                    <div class="pill ghost">
-                      {{ text.serviceMemory }}:
-                      {{
-                        formatMemory(
-                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].memoryRssBytes
-                        )
-                      }}
-                    </div>
+                  <div class="service-status-strip">
+                    <span class="pill">
+                      {{ getServiceStatusLabel(serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].status) }}
+                    </span>
+                    <span class="pill ghost">
+                      {{ text.servicePort }} {{ formatPort(serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].runtimePort) }}
+                    </span>
+                    <span class="pill ghost">
+                      {{ getServiceHealthSummary(serviceInstances[getServiceId(module.artifactId, candidate.mainClass)]) }}
+                    </span>
+                    <span class="pill ghost">
+                      PID {{ serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].pid ?? text.runtimePending }}
+                    </span>
+                    <span class="pill ghost">
+                      {{ serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].buildTool ?? text.runtimePending }}
+                    </span>
+                    <span class="pill ghost">
+                      CPU {{ formatCpu(serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].cpuPercent) }}
+                    </span>
+                    <span class="pill ghost">
+                      MEM {{ formatMemory(serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].memoryRssBytes) }}
+                    </span>
                   </div>
 
                   <div class="logs-panel">
@@ -3758,73 +3668,15 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
         <p class="muted">{{ text.logsWorkspaceEmpty }}</p>
       </template>
       <template v-else>
-        <div
-          v-if="logWorkspaceServices.length > 1"
-          class="log-summary-panel service-comparison-panel"
-        >
-          <div class="project-panel__subheader">
-            <h3>{{ text.serviceComparisonTitle }}</h3>
-            <span class="pill ghost">
-              {{ serviceDiagnosticComparisons.length }}
-            </span>
-          </div>
-
-          <template v-if="serviceDiagnosticComparisons.length === 0">
-            <p class="muted">{{ text.serviceComparisonEmpty }}</p>
-          </template>
-          <template v-else>
-            <div class="service-comparison-grid">
-              <button
-                v-for="comparison in serviceDiagnosticComparisons"
-                :key="comparison.serviceId"
-                class="service-comparison-card"
-                :class="[
-                  `service-comparison-card--${comparison.severity}`,
-                  { active: selectedLogServiceId === comparison.serviceId }
-                ]"
-                type="button"
-                @click="selectedLogServiceId = comparison.serviceId"
-              >
-                <strong>{{ comparison.artifactId }}</strong>
-                <span>{{ text.serviceStatus }}: {{ getServiceStatusLabel(comparison.status) }}</span>
-                <span>{{ text.servicePort }}: {{ formatPort(comparison.runtimePort) }}</span>
-                <div class="service-comparison-card__metrics">
-                  <em>{{ text.serviceComparisonBuildIssues }}: {{ comparison.buildIssueCount }}</em>
-                  <em>{{ text.serviceComparisonRuntimeIssues }}: {{ comparison.runtimeIssueCount }}</em>
-                  <em>{{ text.serviceLogDiagnosticCount }}: {{ comparison.diagnosticCount }}</em>
-                </div>
-                <p v-if="comparison.rootCauseLabel">
-                  {{ text.serviceRootCauseLikely }}:
-                  {{ comparison.rootCauseLabel }}
-                  <span v-if="comparison.rootCauseLineNumber">
-                    · {{ text.serviceLogLinePrefix }} {{ comparison.rootCauseLineNumber }}
-                  </span>
-                </p>
-                <p v-else>
-                  {{ text.serviceComparisonNoRootCause }}
-                </p>
-              </button>
-            </div>
-          </template>
-        </div>
-
-        <div class="workspace-layout">
-          <aside class="workspace-sidebar">
-            <button
-              v-for="instance in logWorkspaceServices"
-              :key="instance.serviceId"
-              class="workspace-service-button"
-              :class="{ active: selectedLogServiceId === instance.serviceId }"
-              type="button"
-              @click="selectedLogServiceId = instance.serviceId"
-            >
-              <strong>{{ instance.artifactId }}</strong>
-              <span>{{ getServiceStatusLabel(instance.status) }}</span>
-            </button>
-          </aside>
-
-          <div class="workspace-main">
+        <div class="workspace-main workspace-main--single">
             <template v-if="activeLogInstance">
+              <div class="service-toolbar service-toolbar--logs">
+                <div class="service-toolbar__title">
+                  <strong>{{ activeLogServiceView ? getServiceListTitle(activeLogServiceView) : activeLogInstance.artifactId }}</strong>
+                  <span>{{ activeLogInstance.mainClass }}</span>
+                </div>
+              </div>
+
               <div class="scan-meta">
                 <div class="pill">
                   {{ text.serviceStatus }}: {{ getServiceStatusLabel(activeLogInstance.status) }}
@@ -4580,7 +4432,6 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
             <template v-else>
               <p class="muted">{{ text.logsWorkspaceSelectHint }}</p>
             </template>
-          </div>
         </div>
       </template>
     </section>

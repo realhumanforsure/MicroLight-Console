@@ -26,6 +26,8 @@ interface LocaleMessages {
   workspaceSidebarRunnable: string
   serviceModuleSource: string
   serviceActiveHint: string
+  serviceOpenLogs: string
+  serviceHealthEndpointMissing: string
   runtimeTitle: string
   runtimeApp: string
   runtimeVersion: string
@@ -340,6 +342,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     workspaceSidebarRunnable: '服务',
     serviceModuleSource: '来源模块',
     serviceActiveHint: '当前只展示可启动服务，api 与聚合模块不会作为服务显示。',
+    serviceOpenLogs: '查看日志',
+    serviceHealthEndpointMissing: '健康端点缺失',
     runtimeTitle: '运行时信息',
     runtimeApp: '应用名称',
     runtimeVersion: '应用版本',
@@ -676,6 +680,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     workspaceSidebarRunnable: 'Services',
     serviceModuleSource: 'Source Module',
     serviceActiveHint: 'Only runnable services are shown here. API and aggregator modules are not listed as services.',
+    serviceOpenLogs: 'Open Logs',
+    serviceHealthEndpointMissing: 'Endpoint Missing',
     runtimeTitle: 'Runtime',
     runtimeApp: 'App',
     runtimeVersion: 'Version',
