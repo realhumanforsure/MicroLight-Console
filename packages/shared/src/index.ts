@@ -162,6 +162,43 @@ export interface ServiceInstancesResponse {
   instances: ServiceInstanceState[]
 }
 
+export type ServiceGroupStatus = 'running' | 'completed' | 'failed' | 'stopping' | 'stopped'
+export type ServiceGroupItemStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped'
+
+export interface ServiceGroupLaunchRequest {
+  groupName: string
+  services: ServiceLaunchRequest[]
+  stopOnFailure: boolean
+}
+
+export interface ServiceGroupStopRequest {
+  groupId: string
+}
+
+export interface ServiceGroupItemState {
+  serviceId: string
+  artifactId: string
+  mainClass: string
+  status: ServiceGroupItemStatus
+  message: string | null
+  instance: ServiceInstanceState | null
+}
+
+export interface ServiceGroupInstance {
+  groupId: string
+  groupName: string
+  status: ServiceGroupStatus
+  stopOnFailure: boolean
+  startedAt: string
+  completedAt: string | null
+  lastUpdatedAt: string
+  services: ServiceGroupItemState[]
+}
+
+export interface ServiceGroupsResponse {
+  groups: ServiceGroupInstance[]
+}
+
 export interface ServiceStreamEvent {
   type: 'snapshot'
   instance: ServiceInstanceState

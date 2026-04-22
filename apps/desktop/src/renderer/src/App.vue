@@ -25,6 +25,8 @@ import {
   type RuntimeDetectionRequest,
   type RuntimeDetectionResult,
   type ServiceCandidate,
+  type ServiceGroupInstance,
+  type ServiceGroupLaunchRequest,
   type ServiceInstanceState,
   type ServiceLaunchRequest,
   type ServiceStreamEvent
@@ -48,6 +50,7 @@ const selectedProjectPath = ref('')
 const projectScan = ref<ProjectScanResult | null>(null)
 const runtimeDetection = ref<RuntimeDetectionResult | null>(null)
 const serviceInstances = ref<Record<string, ServiceInstanceState>>({})
+const serviceGroups = ref<ServiceGroupInstance[]>([])
 const serviceLaunchConfigs = ref<Record<string, ServiceLaunchConfig>>({})
 const locale = ref<Locale>(DEFAULT_LOCALE)
 const appSettings = ref<AppSettings>({
@@ -70,6 +73,7 @@ const scanErrorMessage = ref('')
 const runtimeErrorMessage = ref('')
 const settingsMessage = ref('')
 const serviceActionState = ref<Record<string, boolean>>({})
+const serviceGroupActionRunning = ref(false)
 const text = computed(() => messages[locale.value])
 const logStreams = new Map<string, EventSource>()
 let refreshTimer: number | null = null
@@ -508,6 +512,36 @@ function getServiceStatusLabel(status: ServiceInstanceState['status']) {
   }
 }
 
+function getServiceGroupStatusLabel(status: ServiceGroupInstance['status']) {
+  switch (status) {
+    case 'running':
+      return text.value.serviceGroupRunning
+    case 'completed':
+      return text.value.serviceGroupCompleted
+    case 'failed':
+      return text.value.serviceGroupFailed
+    case 'stopping':
+      return text.value.serviceGroupStopping
+    default:
+      return text.value.serviceGroupStopped
+  }
+}
+
+function getServiceGroupItemStatusLabel(status: ServiceGroupInstance['services'][number]['status']) {
+  switch (status) {
+    case 'pending':
+      return text.value.serviceGroupItemPending
+    case 'running':
+      return text.value.serviceGroupRunning
+    case 'completed':
+      return text.value.serviceGroupCompleted
+    case 'failed':
+      return text.value.serviceGroupFailed
+    default:
+      return text.value.serviceGroupStopped
+  }
+}
+
 function formatCpu(cpuPercent: number | null) {
   return cpuPercent === null ? text.value.runtimePending : `${cpuPercent.toFixed(1)}%`
 }
@@ -520,25 +554,30 @@ function formatPort(port: number | null) {
   return port === null ? text.value.runtimePending : String(port)
 }
 
+function createServiceLaunchRequest(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
+  const launchConfig = getLaunchConfig(artifactId, candidate)
+
+  return {
+    rootPath: selectedProjectPath.value,
+    modulePath,
+    artifactId,
+    mainClass: candidate.mainClass,
+    runtimePort: normalizeRuntimePort(launchConfig.runtimePort),
+    buildToolPreference: launchConfig.buildToolPreference,
+    skipTests: launchConfig.skipTests,
+    jvmArgs: launchConfig.jvmArgs.trim(),
+    programArgs: launchConfig.programArgs.trim(),
+    springProfiles: normalizeProfiles(launchConfig.springProfiles)
+  } satisfies ServiceLaunchRequest
+}
+
 async function launchService(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
   const serviceId = getServiceId(artifactId, candidate.mainClass)
   serviceActionState.value[serviceId] = true
   runtimeErrorMessage.value = ''
 
   try {
-    const launchConfig = getLaunchConfig(artifactId, candidate)
-    const requestBody: ServiceLaunchRequest = {
-      rootPath: selectedProjectPath.value,
-      modulePath,
-      artifactId,
-      mainClass: candidate.mainClass,
-      runtimePort: normalizeRuntimePort(launchConfig.runtimePort),
-      buildToolPreference: launchConfig.buildToolPreference,
-      skipTests: launchConfig.skipTests,
-      jvmArgs: launchConfig.jvmArgs.trim(),
-      programArgs: launchConfig.programArgs.trim(),
-      springProfiles: normalizeProfiles(launchConfig.springProfiles)
-    }
+    const requestBody = createServiceLaunchRequest(modulePath, artifactId, candidate)
 
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/launch`, {
       method: 'POST',
@@ -564,6 +603,89 @@ async function launchService(modulePath: string, artifactId: string, candidate: 
   } finally {
     serviceActionState.value[serviceId] = false
     await refreshInstances()
+  }
+}
+
+async function launchScannedServiceGroup() {
+  if (!projectScan.value || scannedServiceCount.value === 0) {
+    runtimeErrorMessage.value = text.value.serviceGroupEmpty
+    return
+  }
+
+  serviceGroupActionRunning.value = true
+  runtimeErrorMessage.value = ''
+
+  try {
+    const services = projectScan.value.modules.flatMap((module) =>
+      module.serviceCandidates.map((candidate) =>
+        createServiceLaunchRequest(module.modulePath, module.artifactId, candidate)
+      )
+    )
+    const requestBody: ServiceGroupLaunchRequest = {
+      groupName: projectScan.value.artifactId,
+      services,
+      stopOnFailure: true
+    }
+
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/launch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Service group launch failed: ${response.status}`)
+    }
+
+    const group = (await response.json()) as ServiceGroupInstance
+    serviceGroups.value = [group, ...serviceGroups.value.filter((item) => item.groupId !== group.groupId)]
+    selectedLogServiceId.value = group.services.find((service) => service.instance)?.serviceId ?? selectedLogServiceId.value
+    await refreshInstances()
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown service group error'
+  } finally {
+    serviceGroupActionRunning.value = false
+  }
+}
+
+async function stopLastServiceGroup() {
+  const group = lastServiceGroup.value
+
+  if (!group) {
+    runtimeErrorMessage.value = text.value.serviceGroupNoActive
+    return
+  }
+
+  serviceGroupActionRunning.value = true
+  runtimeErrorMessage.value = ''
+
+  try {
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/stop`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ groupId: group.groupId })
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Service group stop failed: ${response.status}`)
+    }
+
+    const stoppedGroup = (await response.json()) as ServiceGroupInstance
+    serviceGroups.value = [
+      stoppedGroup,
+      ...serviceGroups.value.filter((item) => item.groupId !== stoppedGroup.groupId)
+    ]
+    await refreshInstances()
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown service group error'
+  } finally {
+    serviceGroupActionRunning.value = false
   }
 }
 
@@ -691,6 +813,19 @@ const logWorkspaceServices = computed(() =>
     left.artifactId.localeCompare(right.artifactId, 'zh-CN')
   )
 )
+
+const scannedServiceCount = computed(() => {
+  if (!projectScan.value) {
+    return 0
+  }
+
+  return projectScan.value.modules.reduce(
+    (count, module) => count + module.serviceCandidates.length,
+    0
+  )
+})
+
+const lastServiceGroup = computed(() => serviceGroups.value[0] ?? null)
 
 const buildToolOptions = computed(() => [
   { value: 'auto', label: text.value.settingsAuto },
@@ -1096,6 +1231,22 @@ const closeActionOptions = computed(() => [
           <button
             class="secondary-button"
             type="button"
+            :disabled="serviceGroupActionRunning || scannedServiceCount === 0"
+            @click="launchScannedServiceGroup"
+          >
+            {{ serviceGroupActionRunning ? text.servicePreparing : text.serviceGroupLaunchAll }}
+          </button>
+          <button
+            class="secondary-button"
+            type="button"
+            :disabled="serviceGroupActionRunning || !lastServiceGroup"
+            @click="stopLastServiceGroup"
+          >
+            {{ text.serviceGroupStopAll }}
+          </button>
+          <button
+            class="secondary-button"
+            type="button"
             @click="selectProjectDirectory"
           >
             {{ text.selectProject }}
@@ -1113,6 +1264,48 @@ const closeActionOptions = computed(() => [
       <div class="project-path">
         <span>{{ text.selectedPath }}</span>
         <strong>{{ selectedProjectPath || text.noProjectSelected }}</strong>
+      </div>
+
+      <div
+        v-if="lastServiceGroup"
+        class="service-group-panel"
+      >
+        <div class="project-panel__subheader">
+          <h3>{{ text.serviceGroupTitle }}</h3>
+          <span
+            class="pill"
+            :class="{ 'pill--danger': lastServiceGroup.status === 'failed' }"
+          >
+            {{ getServiceGroupStatusLabel(lastServiceGroup.status) }}
+          </span>
+        </div>
+
+        <div class="scan-meta">
+          <div class="pill ghost">
+            {{ text.serviceGroupName }}: {{ lastServiceGroup.groupName }}
+          </div>
+          <div class="pill ghost">
+            {{ text.serviceGroupServiceCount }}: {{ lastServiceGroup.services.length }}
+          </div>
+          <div class="pill ghost">
+            {{ text.serviceGroupUpdatedAt }}: {{ lastServiceGroup.lastUpdatedAt }}
+          </div>
+        </div>
+
+        <div class="service-group-list">
+          <article
+            v-for="service in lastServiceGroup.services"
+            :key="service.serviceId"
+            class="service-group-item"
+          >
+            <strong>{{ service.artifactId }}</strong>
+            <span>{{ service.mainClass }}</span>
+            <em>
+              {{ getServiceGroupItemStatusLabel(service.status) }}
+              {{ service.status === 'failed' && service.message ? ` · ${service.message}` : '' }}
+            </em>
+          </article>
+        </div>
       </div>
 
       <p

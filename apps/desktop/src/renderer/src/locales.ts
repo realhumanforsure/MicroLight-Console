@@ -125,6 +125,20 @@ interface LocaleMessages {
   serviceFailed: string
   serviceNoLogs: string
   servicePreparing: string
+  serviceGroupTitle: string
+  serviceGroupLaunchAll: string
+  serviceGroupStopAll: string
+  serviceGroupName: string
+  serviceGroupServiceCount: string
+  serviceGroupUpdatedAt: string
+  serviceGroupRunning: string
+  serviceGroupItemPending: string
+  serviceGroupCompleted: string
+  serviceGroupFailed: string
+  serviceGroupStopping: string
+  serviceGroupStopped: string
+  serviceGroupEmpty: string
+  serviceGroupNoActive: string
   logsWorkspaceTitle: string
   logsWorkspaceEmpty: string
   logsWorkspaceSelectHint: string
@@ -287,6 +301,20 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceFailed: '失败',
     serviceNoLogs: '当前还没有日志输出。',
     servicePreparing: '处理中...',
+    serviceGroupTitle: '服务组编排',
+    serviceGroupLaunchAll: '顺序启动服务组',
+    serviceGroupStopAll: '停止服务组',
+    serviceGroupName: '服务组',
+    serviceGroupServiceCount: '服务数',
+    serviceGroupUpdatedAt: '更新时间',
+    serviceGroupRunning: '运行中',
+    serviceGroupItemPending: '等待中',
+    serviceGroupCompleted: '已完成',
+    serviceGroupFailed: '失败',
+    serviceGroupStopping: '停止中',
+    serviceGroupStopped: '已停止',
+    serviceGroupEmpty: '当前扫描结果中没有可编排启动的服务。',
+    serviceGroupNoActive: '当前还没有可停止的服务组。',
     logsWorkspaceTitle: '日志工作台',
     logsWorkspaceEmpty: '当前还没有可查看日志的服务。',
     logsWorkspaceSelectHint: '请选择一个服务查看更完整的实时日志。',
@@ -445,6 +473,20 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceFailed: 'Failed',
     serviceNoLogs: 'No logs yet.',
     servicePreparing: 'Working...',
+    serviceGroupTitle: 'Service Group Orchestration',
+    serviceGroupLaunchAll: 'Start Service Group',
+    serviceGroupStopAll: 'Stop Service Group',
+    serviceGroupName: 'Group',
+    serviceGroupServiceCount: 'Services',
+    serviceGroupUpdatedAt: 'Updated At',
+    serviceGroupRunning: 'Running',
+    serviceGroupItemPending: 'Pending',
+    serviceGroupCompleted: 'Completed',
+    serviceGroupFailed: 'Failed',
+    serviceGroupStopping: 'Stopping',
+    serviceGroupStopped: 'Stopped',
+    serviceGroupEmpty: 'No services are available for group orchestration in the current scan result.',
+    serviceGroupNoActive: 'There is no active service group to stop yet.',
     logsWorkspaceTitle: 'Log Workspace',
     logsWorkspaceEmpty: 'No service logs are available yet.',
     logsWorkspaceSelectHint: 'Select a service to inspect its live log stream.',

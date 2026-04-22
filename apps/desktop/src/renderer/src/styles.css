@@ -280,6 +280,40 @@ h1 {
   word-break: break-all;
 }
 
+.service-group-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(121, 240, 200, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(121, 240, 200, 0.1), transparent 42%),
+    rgba(10, 19, 34, 0.88);
+}
+
+.service-group-list {
+  display: grid;
+  gap: 10px;
+}
+
+.service-group-item {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.6fr) minmax(0, 1.2fr) minmax(160px, 0.7fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(6, 13, 25, 0.72);
+}
+
+.service-group-item span,
+.service-group-item em {
+  color: #9cb0ce;
+  font-style: normal;
+  word-break: break-all;
+}
+
 .workspace-layout {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
@@ -613,6 +647,10 @@ dd {
   }
 
   .workspace-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .service-group-item {
     grid-template-columns: 1fr;
   }
 

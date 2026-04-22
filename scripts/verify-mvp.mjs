@@ -120,6 +120,26 @@ try {
 
     return `发布产物 ${payload.artifacts.length} 项，安装步骤 ${payload.installationSteps.length} 项`
   })
+
+  await check('service-group-contract', '服务组编排接口', async () => {
+    const listResponse = await app.inject('/api/service-groups')
+    const listPayload = listResponse.json()
+    const emptyLaunchResponse = await app.inject({
+      method: 'POST',
+      url: '/api/service-groups/launch',
+      payload: {
+        groupName: 'empty',
+        services: [],
+        stopOnFailure: true
+      }
+    })
+
+    assert(listResponse.statusCode === 200, `服务组列表返回 ${listResponse.statusCode}`)
+    assert(Array.isArray(listPayload.groups), '服务组列表格式不正确')
+    assert(emptyLaunchResponse.statusCode === 400, `空服务组应返回 400，实际 ${emptyLaunchResponse.statusCode}`)
+
+    return `服务组列表可读，空服务组保护生效`
+  })
 } finally {
   await rm(tempRoot, { recursive: true, force: true })
   await app.close()

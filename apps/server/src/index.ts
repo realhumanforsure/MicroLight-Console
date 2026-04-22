@@ -15,6 +15,9 @@ import {
   type ProjectScanRequest,
   type ReleaseReadinessResponse,
   type RuntimeDetectionRequest,
+  type ServiceGroupLaunchRequest,
+  type ServiceGroupStopRequest,
+  type ServiceGroupsResponse,
   type ServiceInstancesResponse,
   type ServiceLaunchRequest,
   type ServiceRestartRequest,
@@ -25,6 +28,7 @@ import { generateProjectPreflightReport } from './preflight.js'
 import { scanProject } from './project-scanner.js'
 import { getReleaseReadiness } from './release-readiness.js'
 import { detectRuntimeTools } from './runtime-tools.js'
+import { serviceGroupRuntimeManager } from './service-group-runtime.js'
 import { serviceRuntimeManager } from './service-runtime.js'
 
 export async function createServer() {
@@ -137,6 +141,51 @@ export async function createServer() {
   app.get('/api/services/instances', async (): Promise<ServiceInstancesResponse> => {
     return {
       instances: serviceRuntimeManager.getInstances()
+    }
+  })
+
+  app.get('/api/service-groups', async (): Promise<ServiceGroupsResponse> => {
+    return {
+      groups: serviceGroupRuntimeManager.getGroups()
+    }
+  })
+
+  app.post<{ Body: ServiceGroupLaunchRequest }>('/api/service-groups/launch', async (request, reply) => {
+    try {
+      for (const service of request.body.services) {
+        persistenceService.saveServicePreference({
+          serviceId: `${service.artifactId}:${service.mainClass}`,
+          rootPath: service.rootPath,
+          modulePath: service.modulePath,
+          artifactId: service.artifactId,
+          mainClass: service.mainClass,
+          buildToolPreference: service.buildToolPreference,
+          skipTests: service.skipTests,
+          jvmArgs: service.jvmArgs,
+          programArgs: service.programArgs,
+          springProfiles: service.springProfiles
+        })
+      }
+
+      return await serviceGroupRuntimeManager.launchGroup(request.body)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to launch service group'
+      }
+    }
+  })
+
+  app.post<{ Body: ServiceGroupStopRequest }>('/api/service-groups/stop', async (request, reply) => {
+    try {
+      return await serviceGroupRuntimeManager.stopGroup(request.body.groupId)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to stop service group'
+      }
     }
   })
 
