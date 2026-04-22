@@ -141,6 +141,20 @@ export interface ProjectPreflightReport {
   checks: PreflightCheck[]
 }
 
+export interface ProjectTrialValidationRequest {
+  rootPath: string | null
+}
+
+export interface ProjectTrialValidationReport {
+  generatedAt: string
+  rootPath: string | null
+  target: 'spring-boot-3-maven-3'
+  ready: boolean
+  summary: PreflightSummary
+  checks: PreflightCheck[]
+  recommendation: string
+}
+
 export interface ServiceLaunchRequest {
   rootPath: string
   modulePath: string

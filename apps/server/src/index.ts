@@ -15,6 +15,8 @@ import {
   type ProjectPreflightRequest,
   type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
+  type ProjectTrialValidationRequest,
+  type ProjectTrialValidationReport,
   type ReleaseReadinessResponse,
   type RuntimeDetectionRequest,
   type SavedServiceGroupsResponse,
@@ -35,6 +37,7 @@ import { diagnosePort } from './port-diagnostics.js'
 import { generateProjectPreflightReport } from './preflight.js'
 import { scanProject } from './project-scanner.js'
 import { getReleaseReadiness } from './release-readiness.js'
+import { generateTrialValidationReport } from './trial-validation.js'
 import { detectRuntimeTools } from './runtime-tools.js'
 import { serviceGroupRuntimeManager } from './service-group-runtime.js'
 import { serviceRuntimeManager } from './service-runtime.js'
@@ -133,6 +136,21 @@ export async function createServer() {
       }
     }
   })
+
+  app.post<{ Body: ProjectTrialValidationRequest }>(
+    '/api/projects/trial-validation',
+    async (request, reply): Promise<ProjectTrialValidationReport | { message: string }> => {
+      try {
+        return await generateTrialValidationReport(request.body.rootPath)
+      } catch (error) {
+        request.log.error(error)
+        reply.code(400)
+        return {
+          message: error instanceof Error ? error.message : 'Failed to run trial validation'
+        }
+      }
+    }
+  )
 
   app.post<{ Body: RuntimeDetectionRequest }>('/api/runtime/detect', async (request, reply) => {
     try {

@@ -34,6 +34,16 @@ interface LocaleMessages {
   preflightFail: string
   preflightGeneratedAt: string
   preflightEmpty: string
+  trialTitle: string
+  trialDescription: string
+  trialRefresh: string
+  trialChecking: string
+  trialGeneratedAt: string
+  trialTarget: string
+  trialReady: string
+  trialNotReady: string
+  trialRecommendation: string
+  trialEmpty: string
   releaseEyebrow: string
   releaseTitle: string
   releaseDescription: string
@@ -325,6 +335,16 @@ export const messages: Record<Locale, LocaleMessages> = {
     preflightFail: '失败',
     preflightGeneratedAt: '最近预检时间',
     preflightEmpty: '当前还没有预检结果。',
+    trialTitle: 'Spring Boot 3 试用验证',
+    trialDescription: '面向真实 Spring Boot 3.x / Maven 3.x 项目做可用性判断，先确认能否进入启动、日志和诊断试用。',
+    trialRefresh: '刷新试用验证',
+    trialChecking: '正在验证试用条件...',
+    trialGeneratedAt: '最近验证时间',
+    trialTarget: '验证目标',
+    trialReady: '可进入试用',
+    trialNotReady: '暂不建议试用',
+    trialRecommendation: '建议',
+    trialEmpty: '当前还没有试用验证报告。',
     releaseEyebrow: '发布收尾',
     releaseTitle: 'Windows 安装与运行',
     releaseDescription: '汇总当前 Windows 发布产物、安装动作和运行验证步骤，方便在分发前做最后确认。',
@@ -638,6 +658,16 @@ export const messages: Record<Locale, LocaleMessages> = {
     preflightFail: 'Fail',
     preflightGeneratedAt: 'Last Preflight Time',
     preflightEmpty: 'No preflight report is available yet.',
+    trialTitle: 'Spring Boot 3 Trial Validation',
+    trialDescription: 'Validate whether a real Spring Boot 3.x / Maven 3.x project is ready for launch, logging, and diagnostics trial use.',
+    trialRefresh: 'Refresh Trial Validation',
+    trialChecking: 'Validating trial readiness...',
+    trialGeneratedAt: 'Last Validation Time',
+    trialTarget: 'Target',
+    trialReady: 'Ready for Trial',
+    trialNotReady: 'Not Ready Yet',
+    trialRecommendation: 'Recommendation',
+    trialEmpty: 'No trial validation report is available yet.',
     releaseEyebrow: 'Release Readiness',
     releaseTitle: 'Windows Install and Run',
     releaseDescription: 'Review the current Windows artifacts, installation actions, and runtime checks before distributing a build.',

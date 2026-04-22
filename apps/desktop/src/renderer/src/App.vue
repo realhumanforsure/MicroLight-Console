@@ -23,6 +23,8 @@ import {
   type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
   type ProjectScanResult,
+  type ProjectTrialValidationReport,
+  type ProjectTrialValidationRequest,
   type ReleaseReadinessResponse,
   type RecentProject,
   type RuntimeDetectionRequest,
@@ -116,6 +118,7 @@ interface ServiceDiagnosticComparisonView {
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
+const trialValidationReport = ref<ProjectTrialValidationReport | null>(null)
 const releaseReadiness = ref<ReleaseReadinessResponse | null>(null)
 const selectedProjectPath = ref('')
 const projectScan = ref<ProjectScanResult | null>(null)
@@ -141,6 +144,7 @@ const activeLogHistory = ref<ServiceLogContentResponse | null>(null)
 const portDiagnosis = ref<PortDiagnosisResponse | null>(null)
 const loading = ref(true)
 const preflightLoading = ref(false)
+const trialValidationLoading = ref(false)
 const releaseLoading = ref(false)
 const scanning = ref(false)
 const detecting = ref(false)
@@ -269,6 +273,7 @@ async function initializeApp() {
     runtimeInfo.value = await window.microlight.getRuntimeInfo()
     await Promise.all([loadHealth(), loadAppState(), loadReleaseReadiness()])
     await refreshPreflight()
+    await refreshTrialValidation()
 
     if (appSettings.value.lastProjectPath) {
       selectedProjectPath.value = appSettings.value.lastProjectPath
@@ -318,6 +323,36 @@ async function refreshPreflight() {
     preflightReport.value = null
   } finally {
     preflightLoading.value = false
+  }
+}
+
+async function refreshTrialValidation() {
+  trialValidationLoading.value = true
+
+  try {
+    const payload: ProjectTrialValidationRequest = {
+      rootPath: selectedProjectPath.value.trim() || null
+    }
+
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/projects/trial-validation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      const body = (await response.json()) as { message?: string }
+      throw new Error(body.message ?? `Trial validation failed: ${response.status}`)
+    }
+
+    trialValidationReport.value = (await response.json()) as ProjectTrialValidationReport
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown trial validation error'
+    trialValidationReport.value = null
+  } finally {
+    trialValidationLoading.value = false
   }
 }
 
@@ -476,6 +511,7 @@ async function scanProject() {
     settingsMessage.value = ''
     await loadAppState()
     await refreshPreflight()
+    await refreshTrialValidation()
     await loadSavedServiceGroups()
   } catch (error) {
     scanErrorMessage.value = error instanceof Error ? error.message : 'Unknown scan error'
@@ -2771,6 +2807,73 @@ const closeActionOptions = computed(() => [
         </template>
         <template v-else>
           <p class="muted">{{ text.preflightEmpty }}</p>
+        </template>
+      </article>
+
+      <article class="panel trial-panel">
+        <div class="project-panel__subheader">
+          <h2>{{ text.trialTitle }}</h2>
+          <button
+            class="secondary-button"
+            type="button"
+            @click="refreshTrialValidation"
+          >
+            {{ trialValidationLoading ? text.trialChecking : text.trialRefresh }}
+          </button>
+        </div>
+
+        <p class="muted">{{ text.trialDescription }}</p>
+
+        <template v-if="trialValidationLoading">
+          <p class="muted">{{ text.trialChecking }}</p>
+        </template>
+        <template v-else-if="trialValidationReport">
+          <div class="scan-meta">
+            <div
+              class="pill"
+              :class="{ 'pill--danger': !trialValidationReport.ready }"
+            >
+              {{ trialValidationReport.ready ? text.trialReady : text.trialNotReady }}
+            </div>
+            <div class="pill ghost">
+              {{ text.trialTarget }}: Spring Boot 3 / Maven 3
+            </div>
+          </div>
+
+          <div class="workspace-meta">
+            <span>{{ text.trialGeneratedAt }}</span>
+            <strong>{{ trialValidationReport.generatedAt }}</strong>
+          </div>
+
+          <div class="trial-recommendation">
+            <strong>{{ text.trialRecommendation }}</strong>
+            <p>{{ trialValidationReport.recommendation }}</p>
+          </div>
+
+          <div class="preflight-list">
+            <article
+              v-for="check in trialValidationReport.checks"
+              :key="check.id"
+              class="preflight-item"
+            >
+              <div class="project-panel__subheader">
+                <strong>{{ check.label }}</strong>
+                <span
+                  class="pill"
+                  :class="{
+                    ghost: check.status === 'warn',
+                    'pill--danger': check.status === 'fail'
+                  }"
+                >
+                  {{ getPreflightStatusLabel(check.status) }}
+                </span>
+              </div>
+              <p>{{ check.detail }}</p>
+            </article>
+          </div>
+        </template>
+        <template v-else>
+          <p class="muted">{{ text.trialEmpty }}</p>
         </template>
       </article>
     </section>

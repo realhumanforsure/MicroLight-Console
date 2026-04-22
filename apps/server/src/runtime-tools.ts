@@ -379,14 +379,17 @@ function createCompatibilityMatrixRow(input: {
 }
 
 export function execCommand(command: string, args: string[], cwd: string) {
-  return runStreamingCommand(command, args, cwd)
+  return runStreamingCommand(command, args, cwd, undefined, {
+    timeoutMs: 8000
+  })
 }
 
 export function runStreamingCommand(
   command: string,
   args: string[],
   cwd: string,
-  onOutput?: (chunk: string, source: 'stdout' | 'stderr') => void
+  onOutput?: (chunk: string, source: 'stdout' | 'stderr') => void,
+  options: { timeoutMs?: number } = {}
 ) {
   return new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve, reject) => {
     const child = spawn(command, args, {
@@ -397,6 +400,18 @@ export function runStreamingCommand(
 
     let stdout = ''
     let stderr = ''
+    let settled = false
+    const timeout = options.timeoutMs
+      ? setTimeout(() => {
+          if (settled) {
+            return
+          }
+
+          settled = true
+          child.kill('SIGKILL')
+          reject(new Error(`${command} ${args.join(' ')} timed out after ${options.timeoutMs}ms`))
+        }, options.timeoutMs)
+      : null
 
     child.stdout.on('data', (chunk) => {
       const text = chunk.toString()
@@ -410,8 +425,26 @@ export function runStreamingCommand(
       onOutput?.(text, 'stderr')
     })
 
-    child.on('error', reject)
+    child.on('error', (error) => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+      reject(error)
+    })
     child.on('close', (code) => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      if (timeout) {
+        clearTimeout(timeout)
+      }
       resolve({
         stdout,
         stderr,

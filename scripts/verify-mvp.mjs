@@ -91,6 +91,22 @@ try {
     return `预检通过 ${payload.summary.passCount} 项，警告 ${payload.summary.warnCount} 项`
   })
 
+  await check('trial-validation', 'Spring Boot 3 试用验证', async () => {
+    const payload = await postJson('/api/projects/trial-validation', {
+      rootPath: sampleMultiModulePath
+    })
+
+    assert(payload.target === 'spring-boot-3-maven-3', `验证目标异常：${payload.target}`)
+    assert(payload.ready === true, '示例 Spring Boot 3 项目应可进入试用验证')
+    assert(payload.summary.failCount === 0, `试用验证存在失败项：${payload.summary.failCount}`)
+    assert(
+      payload.checks.some((check) => check.id === 'trial-spring-boot-baseline' && check.status === 'pass'),
+      'Spring Boot 3 基线检查未通过'
+    )
+
+    return `试用验证通过 ${payload.summary.passCount} 项`
+  })
+
   await check('runtime-compatibility-matrix', '运行环境兼容矩阵', async () => {
     const payload = await postJson('/api/runtime/detect', {
       rootPath: sampleSingleModulePath
