@@ -171,6 +171,10 @@ interface LocaleMessages {
   serviceLogResumeScroll: string
   serviceLogPaused: string
   serviceLogVisibleLines: string
+  serviceLogDiagnosticCount: string
+  serviceLogHighlightsTitle: string
+  serviceLogDiagnosticEmpty: string
+  serviceLogLinePrefix: string
   serviceLogHistoryTitle: string
   serviceLogHistoryLoading: string
   serviceLogHistoryEmpty: string
@@ -416,6 +420,10 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogResumeScroll: '恢复跟随',
     serviceLogPaused: '自动跟随已暂停',
     serviceLogVisibleLines: '当前展示',
+    serviceLogDiagnosticCount: '异常命中',
+    serviceLogHighlightsTitle: '异常与失败定位',
+    serviceLogDiagnosticEmpty: '当前筛选结果里还没有识别到异常或失败日志。',
+    serviceLogLinePrefix: '第',
     serviceLogHistoryTitle: '历史日志',
     serviceLogHistoryLoading: '正在读取历史日志...',
     serviceLogHistoryEmpty: '当前还没有可读取的历史日志文件。',
@@ -657,6 +665,10 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogResumeScroll: 'Resume Follow',
     serviceLogPaused: 'Auto-follow paused',
     serviceLogVisibleLines: 'Visible Lines',
+    serviceLogDiagnosticCount: 'Diagnostic Hits',
+    serviceLogHighlightsTitle: 'Error And Failure Highlights',
+    serviceLogDiagnosticEmpty: 'No error or failure lines were detected in the current filtered logs.',
+    serviceLogLinePrefix: 'Line',
     serviceLogHistoryTitle: 'Log History',
     serviceLogHistoryLoading: 'Loading log history...',
     serviceLogHistoryEmpty: 'No historical log file is available yet.',

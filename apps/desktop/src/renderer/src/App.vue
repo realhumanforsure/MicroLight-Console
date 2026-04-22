@@ -55,6 +55,14 @@ interface ServiceLaunchConfig {
 }
 
 type LogLevelFilter = 'all' | 'info' | 'warn' | 'error' | 'debug'
+type RenderedLogLevel = 'default' | 'info' | 'warn' | 'error' | 'debug'
+
+interface LogLineView {
+  lineNumber: number
+  text: string
+  level: RenderedLogLevel
+  isDiagnostic: boolean
+}
 
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
@@ -101,7 +109,10 @@ const logWorkspaceMessage = ref('')
 const serviceActionState = ref<Record<string, boolean>>({})
 const serviceGroupActionRunning = ref(false)
 const serviceGroupStartupIntervalSeconds = ref('5')
-const liveLogPanelRef = ref<HTMLPreElement | null>(null)
+const liveLogPanelRef = ref<HTMLElement | null>(null)
+const historyLogPanelRef = ref<HTMLElement | null>(null)
+const selectedLiveDiagnosticLineNumber = ref<number | null>(null)
+const selectedHistoryDiagnosticLineNumber = ref<number | null>(null)
 const text = computed(() => messages[locale.value])
 const logStreams = new Map<string, EventSource>()
 let refreshTimer: number | null = null
@@ -182,8 +193,10 @@ watch(selectedLogServiceId, (serviceId) => {
   liveLogSearchKeyword.value = ''
   liveLogLevelFilter.value = 'all'
   liveLogFollowEnabled.value = true
+  selectedLiveDiagnosticLineNumber.value = null
   historyLogSearchKeyword.value = ''
   historyLogLevelFilter.value = 'all'
+  selectedHistoryDiagnosticLineNumber.value = null
 
   if (!serviceId) {
     logHistoryEntries.value = []
@@ -753,6 +766,30 @@ function toSafeFileName(value: string) {
   return value.replace(/[<>:"/\\|?*]+/g, '-').replace(/\s+/g, '-')
 }
 
+function getRenderedLogLevel(line: string): RenderedLogLevel {
+  if (/\berror\b/i.test(line) || /\bexception\b/i.test(line) || /\bcaused by\b/i.test(line)) {
+    return 'error'
+  }
+
+  if (/\bwarn(?:ing)?\b/i.test(line)) {
+    return 'warn'
+  }
+
+  if (/\binfo\b/i.test(line) || /\bstarted\b/i.test(line) || /\bstartup\b/i.test(line)) {
+    return 'info'
+  }
+
+  if (/\bdebug\b/i.test(line) || /\btrace\b/i.test(line)) {
+    return 'debug'
+  }
+
+  return 'default'
+}
+
+function isDiagnosticLogLine(line: string) {
+  return /\berror\b/i.test(line) || /\bexception\b/i.test(line) || /\bcaused by\b/i.test(line) || /\bfailed\b/i.test(line)
+}
+
 function matchesLogLevel(line: string, level: LogLevelFilter) {
   if (level === 'all') {
     return true
@@ -772,19 +809,41 @@ function matchesLogLevel(line: string, level: LogLevelFilter) {
   }
 }
 
-function filterLogLines(lines: string[], keyword: string, level: LogLevelFilter) {
+function buildLogLineViews(lines: string[], keyword: string, level: LogLevelFilter) {
   const normalizedKeyword = keyword.trim().toLowerCase()
 
-  return lines.filter((line) => {
+  return lines.flatMap((line, index) => {
     if (!matchesLogLevel(line, level)) {
-      return false
+      return []
     }
 
-    if (!normalizedKeyword) {
-      return true
+    if (normalizedKeyword && !line.toLowerCase().includes(normalizedKeyword)) {
+      return []
     }
 
-    return line.toLowerCase().includes(normalizedKeyword)
+    return [
+      {
+        lineNumber: index + 1,
+        text: line,
+        level: getRenderedLogLevel(line),
+        isDiagnostic: isDiagnosticLogLine(line)
+      } satisfies LogLineView
+    ]
+  })
+}
+
+async function scrollToLogLine(panel: HTMLElement | null, lineNumber: number) {
+  await nextTick()
+
+  const target = panel?.querySelector<HTMLElement>(`[data-line-number="${lineNumber}"]`)
+
+  if (!target) {
+    return
+  }
+
+  target.scrollIntoView({
+    block: 'center',
+    behavior: 'smooth'
   })
 }
 
@@ -822,18 +881,18 @@ function buildLogExportContent(title: string, sourcePath: string | null, lines: 
   return [...header, ...lines].join('\n')
 }
 
-async function copyLogs(title: string, lines: string[]) {
-  if (lines.length === 0) {
+async function copyLogs(title: string, lineViews: LogLineView[]) {
+  if (lineViews.length === 0) {
     logWorkspaceMessage.value = text.value.serviceLogActionEmpty
     return
   }
 
-  await window.microlight.copyText(lines.join('\n'))
+  await window.microlight.copyText(lineViews.map((line) => line.text).join('\n'))
   logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
 }
 
-async function exportLogs(title: string, sourcePath: string | null, fileNameBase: string, lines: string[]) {
-  if (lines.length === 0) {
+async function exportLogs(title: string, sourcePath: string | null, fileNameBase: string, lineViews: LogLineView[]) {
+  if (lineViews.length === 0) {
     logWorkspaceMessage.value = text.value.serviceLogActionEmpty
     return
   }
@@ -841,7 +900,7 @@ async function exportLogs(title: string, sourcePath: string | null, fileNameBase
   const result = await window.microlight.saveTextFile({
     title: `${title} · ${text.value.serviceLogExport}`,
     defaultFileName: `${toSafeFileName(fileNameBase)}-${formatExportTimestamp()}.log`,
-    content: buildLogExportContent(title, sourcePath, lines)
+    content: buildLogExportContent(title, sourcePath, lineViews.map((line) => line.text))
   })
 
   if (result.canceled) {
@@ -854,7 +913,7 @@ async function exportLogs(title: string, sourcePath: string | null, fileNameBase
 async function copyLiveLogs() {
   try {
     runtimeErrorMessage.value = ''
-    await copyLogs(text.value.serviceLogs, filteredActiveLogLines.value)
+    await copyLogs(text.value.serviceLogs, filteredActiveLogLineViews.value)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
   }
@@ -871,7 +930,7 @@ async function exportLiveLogs() {
       `${activeLogInstance.value.artifactId} ${text.value.serviceLogs}`,
       activeLogInstance.value.logFilePath,
       `${activeLogInstance.value.artifactId}-live-log`,
-      filteredActiveLogLines.value
+      filteredActiveLogLineViews.value
     )
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log export error'
@@ -881,7 +940,7 @@ async function exportLiveLogs() {
 async function copyHistoryLogs() {
   try {
     runtimeErrorMessage.value = ''
-    await copyLogs(text.value.serviceLogHistoryTitle, filteredHistoryLogLines.value)
+    await copyLogs(text.value.serviceLogHistoryTitle, filteredHistoryLogLineViews.value)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
   }
@@ -898,11 +957,22 @@ async function exportHistoryLogs() {
       `${activeLogHistory.value.entry.fileName} ${text.value.serviceLogHistoryTitle}`,
       activeLogHistory.value.entry.filePath,
       activeLogHistory.value.entry.fileName.replace(/\.log$/i, ''),
-      filteredHistoryLogLines.value
+      filteredHistoryLogLineViews.value
     )
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log export error'
   }
+}
+
+async function focusLiveDiagnostic(lineNumber: number) {
+  liveLogFollowEnabled.value = false
+  selectedLiveDiagnosticLineNumber.value = lineNumber
+  await scrollToLogLine(liveLogPanelRef.value, lineNumber)
+}
+
+async function focusHistoryDiagnostic(lineNumber: number) {
+  selectedHistoryDiagnosticLineNumber.value = lineNumber
+  await scrollToLogLine(historyLogPanelRef.value, lineNumber)
 }
 
 function createServiceLaunchRequest(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
@@ -1358,6 +1428,7 @@ function selectLogHistoryEntry(serviceId: string, entryId: string) {
   logWorkspaceMessage.value = ''
   historyLogSearchKeyword.value = ''
   historyLogLevelFilter.value = 'all'
+  selectedHistoryDiagnosticLineNumber.value = null
   void loadLogHistoryContent(serviceId, entryId)
 }
 
@@ -1414,20 +1485,48 @@ const logLevelOptions = computed(() => [
   { value: 'debug' satisfies LogLevelFilter, label: text.value.serviceLogLevelDebug }
 ])
 
-const filteredActiveLogLines = computed(() =>
-  filterLogLines(activeLogInstance.value?.logLines ?? [], liveLogSearchKeyword.value, liveLogLevelFilter.value)
+const filteredActiveLogLineViews = computed(() =>
+  buildLogLineViews(activeLogInstance.value?.logLines ?? [], liveLogSearchKeyword.value, liveLogLevelFilter.value)
 )
 
-const filteredHistoryLogLines = computed(() =>
-  filterLogLines(activeLogHistory.value?.lines ?? [], historyLogSearchKeyword.value, historyLogLevelFilter.value)
+const filteredHistoryLogLineViews = computed(() =>
+  buildLogLineViews(activeLogHistory.value?.lines ?? [], historyLogSearchKeyword.value, historyLogLevelFilter.value)
 )
+
+const liveDiagnosticLineViews = computed(() =>
+  filteredActiveLogLineViews.value.filter((line) => line.isDiagnostic).slice(-12)
+)
+
+const historyDiagnosticLineViews = computed(() =>
+  filteredHistoryLogLineViews.value.filter((line) => line.isDiagnostic).slice(-12)
+)
+
+watch(filteredActiveLogLineViews, (lineViews) => {
+  if (selectedLiveDiagnosticLineNumber.value === null) {
+    return
+  }
+
+  if (!lineViews.some((line) => line.lineNumber === selectedLiveDiagnosticLineNumber.value)) {
+    selectedLiveDiagnosticLineNumber.value = null
+  }
+})
+
+watch(filteredHistoryLogLineViews, (lineViews) => {
+  if (selectedHistoryDiagnosticLineNumber.value === null) {
+    return
+  }
+
+  if (!lineViews.some((line) => line.lineNumber === selectedHistoryDiagnosticLineNumber.value)) {
+    selectedHistoryDiagnosticLineNumber.value = null
+  }
+})
 
 watch(
   () =>
     [
       selectedLogServiceId.value,
       activeLogInstance.value?.logLines.length ?? 0,
-      filteredActiveLogLines.value.length,
+      filteredActiveLogLineViews.value.length,
       liveLogFollowEnabled.value
     ] as const,
   async ([serviceId, totalLines, visibleLines, followEnabled], previousState) => {
@@ -2507,7 +2606,7 @@ const closeActionOptions = computed(() => [
                   <button
                     class="secondary-button log-toolbar__button"
                     type="button"
-                    :disabled="filteredActiveLogLines.length === 0"
+                    :disabled="filteredActiveLogLineViews.length === 0"
                     @click="copyLiveLogs"
                   >
                     {{ text.serviceLogCopy }}
@@ -2515,7 +2614,7 @@ const closeActionOptions = computed(() => [
                   <button
                     class="secondary-button log-toolbar__button"
                     type="button"
-                    :disabled="filteredActiveLogLines.length === 0"
+                    :disabled="filteredActiveLogLineViews.length === 0"
                     @click="exportLiveLogs"
                   >
                     {{ text.serviceLogExport }}
@@ -2532,7 +2631,10 @@ const closeActionOptions = computed(() => [
 
               <div class="scan-meta">
                 <div class="pill ghost">
-                  {{ text.serviceLogVisibleLines }}: {{ filteredActiveLogLines.length }} / {{ activeLogInstance.logLines.length }}
+                  {{ text.serviceLogVisibleLines }}: {{ filteredActiveLogLineViews.length }} / {{ activeLogInstance.logLines.length }}
+                </div>
+                <div class="pill ghost">
+                  {{ text.serviceLogDiagnosticCount }}: {{ liveDiagnosticLineViews.length }}
                 </div>
                 <div
                   v-if="!liveLogFollowEnabled"
@@ -2542,12 +2644,65 @@ const closeActionOptions = computed(() => [
                 </div>
               </div>
 
+              <div class="log-summary-panel">
+                <div class="project-panel__subheader">
+                  <h3>{{ text.serviceLogHighlightsTitle }}</h3>
+                </div>
+
+                <template v-if="liveDiagnosticLineViews.length === 0">
+                  <p class="muted">{{ text.serviceLogDiagnosticEmpty }}</p>
+                </template>
+                <template v-else>
+                  <div class="log-highlight-list">
+                    <button
+                      v-for="line in liveDiagnosticLineViews"
+                      :key="`live-${line.lineNumber}`"
+                      class="log-highlight-button"
+                      :class="{
+                        active: selectedLiveDiagnosticLineNumber === line.lineNumber,
+                        'log-highlight-button--error': line.level === 'error',
+                        'log-highlight-button--warn': line.level === 'warn'
+                      }"
+                      type="button"
+                      @click="focusLiveDiagnostic(line.lineNumber)"
+                    >
+                      <strong>{{ text.serviceLogLinePrefix }} {{ line.lineNumber }}</strong>
+                      <span>{{ line.text }}</span>
+                    </button>
+                  </div>
+                </template>
+              </div>
+
               <div class="logs-panel logs-panel--workspace">
                 <span>{{ text.serviceLogs }}</span>
-                <pre ref="liveLogPanelRef">{{
-                  filteredActiveLogLines.join('\n') ||
-                  (activeLogInstance.logLines.length > 0 ? text.serviceNoMatchingLogs : text.serviceNoLogs)
-                }}</pre>
+                <div
+                  v-if="filteredActiveLogLineViews.length > 0"
+                  ref="liveLogPanelRef"
+                  class="logs-panel__content logs-panel__content--workspace"
+                >
+                  <div
+                    v-for="line in filteredActiveLogLineViews"
+                    :key="`live-line-${line.lineNumber}`"
+                    class="log-line"
+                    :class="[
+                      `log-line--${line.level}`,
+                      {
+                        'log-line--diagnostic': line.isDiagnostic,
+                        'log-line--selected': selectedLiveDiagnosticLineNumber === line.lineNumber
+                      }
+                    ]"
+                    :data-line-number="line.lineNumber"
+                  >
+                    <span class="log-line__number">{{ line.lineNumber }}</span>
+                    <span class="log-line__text">{{ line.text }}</span>
+                  </div>
+                </div>
+                <p
+                  v-else
+                  class="muted"
+                >
+                  {{ activeLogInstance.logLines.length > 0 ? text.serviceNoMatchingLogs : text.serviceNoLogs }}
+                </p>
               </div>
 
               <div class="service-group-panel">
@@ -2615,7 +2770,7 @@ const closeActionOptions = computed(() => [
                             <button
                               class="secondary-button log-toolbar__button"
                               type="button"
-                              :disabled="filteredHistoryLogLines.length === 0"
+                              :disabled="filteredHistoryLogLineViews.length === 0"
                               @click="copyHistoryLogs"
                             >
                               {{ text.serviceLogCopy }}
@@ -2623,7 +2778,7 @@ const closeActionOptions = computed(() => [
                             <button
                               class="secondary-button log-toolbar__button"
                               type="button"
-                              :disabled="filteredHistoryLogLines.length === 0"
+                              :disabled="filteredHistoryLogLineViews.length === 0"
                               @click="exportHistoryLogs"
                             >
                               {{ text.serviceLogExport }}
@@ -2636,7 +2791,10 @@ const closeActionOptions = computed(() => [
                             {{ text.serviceLogHistoryLines }}: {{ activeLogHistory.totalLines }}
                           </div>
                           <div class="pill ghost">
-                            {{ text.serviceLogVisibleLines }}: {{ filteredHistoryLogLines.length }} / {{ activeLogHistory.lines.length }}
+                            {{ text.serviceLogVisibleLines }}: {{ filteredHistoryLogLineViews.length }} / {{ activeLogHistory.lines.length }}
+                          </div>
+                          <div class="pill ghost">
+                            {{ text.serviceLogDiagnosticCount }}: {{ historyDiagnosticLineViews.length }}
                           </div>
                           <div
                             v-if="activeLogHistory.entry.isActive"
@@ -2652,12 +2810,65 @@ const closeActionOptions = computed(() => [
                           </div>
                         </div>
 
+                        <div class="log-summary-panel">
+                          <div class="project-panel__subheader">
+                            <h3>{{ text.serviceLogHighlightsTitle }}</h3>
+                          </div>
+
+                          <template v-if="historyDiagnosticLineViews.length === 0">
+                            <p class="muted">{{ text.serviceLogDiagnosticEmpty }}</p>
+                          </template>
+                          <template v-else>
+                            <div class="log-highlight-list">
+                              <button
+                                v-for="line in historyDiagnosticLineViews"
+                                :key="`history-${line.lineNumber}`"
+                                class="log-highlight-button"
+                                :class="{
+                                  active: selectedHistoryDiagnosticLineNumber === line.lineNumber,
+                                  'log-highlight-button--error': line.level === 'error',
+                                  'log-highlight-button--warn': line.level === 'warn'
+                                }"
+                                type="button"
+                                @click="focusHistoryDiagnostic(line.lineNumber)"
+                              >
+                                <strong>{{ text.serviceLogLinePrefix }} {{ line.lineNumber }}</strong>
+                                <span>{{ line.text }}</span>
+                              </button>
+                            </div>
+                          </template>
+                        </div>
+
                         <div class="logs-panel logs-panel--workspace">
                           <span>{{ text.serviceLogHistoryTitle }}</span>
-                          <pre>{{
-                            filteredHistoryLogLines.join('\n') ||
-                            (activeLogHistory.lines.length > 0 ? text.serviceNoMatchingLogs : text.serviceNoLogs)
-                          }}</pre>
+                          <div
+                            v-if="filteredHistoryLogLineViews.length > 0"
+                            ref="historyLogPanelRef"
+                            class="logs-panel__content logs-panel__content--workspace"
+                          >
+                            <div
+                              v-for="line in filteredHistoryLogLineViews"
+                              :key="`history-line-${line.lineNumber}`"
+                              class="log-line"
+                              :class="[
+                                `log-line--${line.level}`,
+                                {
+                                  'log-line--diagnostic': line.isDiagnostic,
+                                  'log-line--selected': selectedHistoryDiagnosticLineNumber === line.lineNumber
+                                }
+                              ]"
+                              :data-line-number="line.lineNumber"
+                            >
+                              <span class="log-line__number">{{ line.lineNumber }}</span>
+                              <span class="log-line__text">{{ line.text }}</span>
+                            </div>
+                          </div>
+                          <p
+                            v-else
+                            class="muted"
+                          >
+                            {{ activeLogHistory.lines.length > 0 ? text.serviceNoMatchingLogs : text.serviceNoLogs }}
+                          </p>
                         </div>
                       </template>
                     </div>

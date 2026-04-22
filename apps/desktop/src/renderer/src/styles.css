@@ -408,6 +408,49 @@ h1 {
   min-height: 44px;
 }
 
+.log-summary-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(10, 19, 34, 0.85);
+}
+
+.log-highlight-list {
+  display: grid;
+  gap: 10px;
+}
+
+.log-highlight-button {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid rgba(189, 210, 255, 0.12);
+  background: rgba(6, 13, 25, 0.72);
+  color: #e6f0ff;
+  cursor: pointer;
+}
+
+.log-highlight-button span {
+  color: #9cb0ce;
+  word-break: break-word;
+}
+
+.log-highlight-button.active {
+  border-color: rgba(147, 184, 255, 0.45);
+  background: rgba(14, 31, 52, 0.92);
+}
+
+.log-highlight-button--error {
+  border-color: rgba(255, 126, 126, 0.26);
+}
+
+.log-highlight-button--warn {
+  border-color: rgba(255, 197, 94, 0.24);
+}
+
 .scan-result {
   display: grid;
   gap: 16px;
@@ -622,6 +665,65 @@ h1 {
 
 .logs-panel--workspace pre {
   max-height: 520px;
+}
+
+.logs-panel__content {
+  max-height: 240px;
+  overflow: auto;
+  display: grid;
+  gap: 2px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.logs-panel__content--workspace {
+  max-height: 520px;
+}
+
+.log-line {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 12px;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.log-line--diagnostic {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.log-line--selected {
+  outline: 1px solid rgba(147, 184, 255, 0.48);
+  background: rgba(35, 60, 98, 0.32);
+}
+
+.log-line--info .log-line__text {
+  color: #d9e7fb;
+}
+
+.log-line--warn .log-line__text {
+  color: #ffd991;
+}
+
+.log-line--error .log-line__text {
+  color: #ffb4b4;
+}
+
+.log-line--debug .log-line__text {
+  color: #9ac1ff;
+}
+
+.log-line__number {
+  color: #6f83a3;
+  text-align: right;
+  user-select: none;
+}
+
+.log-line__text {
+  color: #d9e7fb;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .panel h2 {
