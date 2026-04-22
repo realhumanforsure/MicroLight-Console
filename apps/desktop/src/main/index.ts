@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -124,6 +125,7 @@ async function createWindow() {
     minWidth: 1080,
     minHeight: 720,
     title: APP_NAME,
+    icon: resolveWindowIconPath(),
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -220,6 +222,15 @@ function createTrayIcon() {
   `.trim()
 
   return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`)
+}
+
+function resolveWindowIconPath() {
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
+  const iconPath = app.isPackaged && resourcesPath
+    ? path.join(resourcesPath, 'icon.ico')
+    : path.join(app.getAppPath(), 'buildResources', 'icon.svg')
+
+  return existsSync(iconPath) ? iconPath : undefined
 }
 
 function showMainWindow() {

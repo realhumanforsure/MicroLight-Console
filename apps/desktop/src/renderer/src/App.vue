@@ -656,6 +656,10 @@ function getReleaseArtifactLabel(id: string) {
     return text.value.releaseApplicationResourcesArtifact
   }
 
+  if (id === 'application-icon') {
+    return text.value.releaseApplicationIconArtifact
+  }
+
   return id
 }
 

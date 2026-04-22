@@ -13,6 +13,7 @@ const workspaceRoot = path.resolve(__dirname, '..', '..', '..')
 const releaseRoot = path.join(workspaceRoot, 'apps', 'desktop', 'release')
 const sourceInstallerPath = path.join(releaseRoot, 'MicroLight Console-0.1.0-x64.exe')
 const sourceUnpackedExePath = path.join(releaseRoot, 'win-unpacked', 'MicroLight Console.exe')
+const sourceIconPath = path.join(releaseRoot, 'win-unpacked', 'resources', 'icon.ico')
 
 export async function getReleaseReadiness(): Promise<ReleaseReadinessResponse> {
   const runtimePaths = resolveRuntimePaths()
@@ -36,6 +37,7 @@ function resolveRuntimePaths() {
   if (isPackagedElectronRuntime()) {
     const currentExecutablePath = process.execPath
     const resourcesPath = getElectronResourcesPath() ?? path.dirname(currentExecutablePath)
+    const iconPath = path.join(resourcesPath, 'icon.ico')
 
     return {
       installerPath: currentExecutablePath,
@@ -52,6 +54,12 @@ function resolveRuntimePaths() {
           label: 'Application resources',
           path: resourcesPath,
           detail: 'Packaged application resources directory is readable.'
+        },
+        {
+          id: 'application-icon',
+          label: 'Application icon',
+          path: iconPath,
+          detail: 'Packaged Windows icon resource is readable.'
         }
       ]
     }
@@ -72,6 +80,12 @@ function resolveRuntimePaths() {
         label: 'Unpacked executable',
         path: sourceUnpackedExePath,
         detail: 'Portable validation target used before distributing the installer.'
+      },
+      {
+        id: 'application-icon',
+        label: 'Application icon',
+        path: sourceIconPath,
+        detail: 'Windows icon resource generated for the packaged application.'
       }
     ]
   }

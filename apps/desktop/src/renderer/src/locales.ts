@@ -44,6 +44,7 @@ interface LocaleMessages {
   releaseUnpackedArtifact: string
   releaseCurrentExecutableArtifact: string
   releaseApplicationResourcesArtifact: string
+  releaseApplicationIconArtifact: string
   releaseAvailable: string
   releaseMissing: string
   releaseInstallStepsTitle: string
@@ -334,6 +335,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     releaseUnpackedArtifact: '解压版可执行文件',
     releaseCurrentExecutableArtifact: '当前可执行文件',
     releaseApplicationResourcesArtifact: '应用资源目录',
+    releaseApplicationIconArtifact: '应用图标',
     releaseAvailable: '已生成',
     releaseMissing: '缺失',
     releaseInstallStepsTitle: '安装步骤',
@@ -646,6 +648,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     releaseUnpackedArtifact: 'Unpacked Executable',
     releaseCurrentExecutableArtifact: 'Current Executable',
     releaseApplicationResourcesArtifact: 'Application Resources',
+    releaseApplicationIconArtifact: 'Application Icon',
     releaseAvailable: 'Generated',
     releaseMissing: 'Missing',
     releaseInstallStepsTitle: 'Installation Steps',

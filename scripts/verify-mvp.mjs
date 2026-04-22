@@ -15,6 +15,7 @@ const sampleMultiModulePath = path.join(workspaceRoot, 'fixtures', 'sample-multi
 const desktopReleasePath = path.join(workspaceRoot, 'apps', 'desktop', 'release')
 const installerPath = path.join(desktopReleasePath, 'MicroLight Console-0.1.0-x64.exe')
 const unpackedExePath = path.join(desktopReleasePath, 'win-unpacked', 'MicroLight Console.exe')
+const releaseIconPath = path.join(desktopReleasePath, 'win-unpacked', 'resources', 'icon.ico')
 const tempRoot = path.join(os.tmpdir(), `MicroLight Console 验收-${Date.now()}`)
 const tempProjectPath = path.join(tempRoot, '示例 项目')
 
@@ -158,8 +159,9 @@ try {
   await check('release-artifacts', 'Windows 发布产物', async () => {
     await access(installerPath)
     await access(unpackedExePath)
+    await access(releaseIconPath)
 
-    return `已找到安装器和 win-unpacked 可执行文件`
+    return `已找到安装器、win-unpacked 可执行文件和应用图标`
   })
 
   await check('release-readiness', '发布安装说明', async () => {
