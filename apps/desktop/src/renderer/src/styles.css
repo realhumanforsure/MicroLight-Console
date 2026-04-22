@@ -530,6 +530,60 @@ h1 {
   word-break: break-word;
 }
 
+.service-comparison-panel {
+  margin-bottom: 18px;
+}
+
+.service-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.service-comparison-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  text-align: left;
+  border-radius: 16px;
+  border: 1px solid rgba(189, 210, 255, 0.12);
+  background: rgba(6, 13, 25, 0.72);
+  color: #e6f0ff;
+  cursor: pointer;
+}
+
+.service-comparison-card span,
+.service-comparison-card p,
+.service-comparison-card em {
+  color: #9cb0ce;
+  font-style: normal;
+  line-height: 1.55;
+  margin: 0;
+  word-break: break-word;
+}
+
+.service-comparison-card.active {
+  border-color: rgba(121, 240, 200, 0.48);
+  background: rgba(12, 34, 42, 0.94);
+}
+
+.service-comparison-card--error {
+  border-color: rgba(255, 126, 126, 0.34);
+}
+
+.service-comparison-card--warn {
+  border-color: rgba(255, 197, 94, 0.26);
+}
+
+.service-comparison-card--ok {
+  border-color: rgba(121, 240, 200, 0.18);
+}
+
+.service-comparison-card__metrics {
+  display: grid;
+  gap: 4px;
+}
+
 .log-highlight-list {
   display: grid;
   gap: 10px;
@@ -946,6 +1000,10 @@ dd {
   }
 
   .port-diagnosis-list {
+    grid-template-columns: 1fr;
+  }
+
+  .service-comparison-grid {
     grid-template-columns: 1fr;
   }
 

@@ -234,6 +234,11 @@ interface LocaleMessages {
   serviceRootCauseEmpty: string
   serviceRootCauseOccurrences: string
   serviceRootCauseCopy: string
+  serviceComparisonTitle: string
+  serviceComparisonEmpty: string
+  serviceComparisonBuildIssues: string
+  serviceComparisonRuntimeIssues: string
+  serviceComparisonNoRootCause: string
   serviceIdle: string
   serviceBuilding: string
   serviceRunning: string
@@ -536,6 +541,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceRootCauseEmpty: '当前还没有可归并的异常链。',
     serviceRootCauseOccurrences: '重复出现',
     serviceRootCauseCopy: '复制根因链',
+    serviceComparisonTitle: '多服务异常对比',
+    serviceComparisonEmpty: '当前还没有可对比的服务异常信息。',
+    serviceComparisonBuildIssues: '构建问题',
+    serviceComparisonRuntimeIssues: '运行问题',
+    serviceComparisonNoRootCause: '暂未识别到明确根因。',
     serviceIdle: '空闲',
     serviceBuilding: '构建中',
     serviceRunning: '运行中',
@@ -834,6 +844,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceRootCauseEmpty: 'No consolidated exception chain is available yet.',
     serviceRootCauseOccurrences: 'Repeated',
     serviceRootCauseCopy: 'Copy Root Cause Chain',
+    serviceComparisonTitle: 'Multi-Service Diagnostics',
+    serviceComparisonEmpty: 'There is no cross-service diagnostic information to compare yet.',
+    serviceComparisonBuildIssues: 'Build Issues',
+    serviceComparisonRuntimeIssues: 'Runtime Issues',
+    serviceComparisonNoRootCause: 'No clear root cause detected yet.',
     serviceIdle: 'Idle',
     serviceBuilding: 'Building',
     serviceRunning: 'Running',

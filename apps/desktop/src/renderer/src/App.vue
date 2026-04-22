@@ -100,6 +100,19 @@ interface RootCauseAnalysisView {
   chainItems: RootCauseChainItemView[]
 }
 
+interface ServiceDiagnosticComparisonView {
+  serviceId: string
+  artifactId: string
+  status: ServiceInstanceState['status']
+  runtimePort: number | null
+  severity: 'ok' | 'warn' | 'error'
+  buildIssueCount: number
+  runtimeIssueCount: number
+  diagnosticCount: number
+  rootCauseLabel: string | null
+  rootCauseLineNumber: number | null
+}
+
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
@@ -1262,6 +1275,47 @@ function buildBuildFailureSummaryViews(params: {
   return summaries.slice(0, 4)
 }
 
+function buildServiceDiagnosticComparison(instance: ServiceInstanceState): ServiceDiagnosticComparisonView {
+  const lineViews = buildLogLineViews(instance.logLines, '', 'all')
+  const diagnosticGroups = buildDiagnosticGroups(lineViews)
+  const buildSummaries = buildBuildFailureSummaryViews({
+    lineViews,
+    serviceStatus: instance.status
+  })
+  const runtimeSummaries = buildFailureSummaryViews({
+    lineViews,
+    diagnosticGroups,
+    serviceStatus: instance.status,
+    healthStatus: instance.healthStatus,
+    healthDetail: instance.healthDetail,
+    portReachable: instance.portReachable
+  })
+  const rootCauseAnalysis = buildRootCauseAnalysis(instance.logLines, diagnosticGroups[0]?.latestLineView.lineNumber ?? 0)
+  const hasError =
+    instance.status === 'failed' ||
+    buildSummaries.some((summary) => summary.severity === 'error') ||
+    runtimeSummaries.some((summary) => summary.severity === 'error')
+  const hasWarning =
+    instance.healthStatus === 'unhealthy' ||
+    instance.portReachable === false ||
+    buildSummaries.length > 0 ||
+    runtimeSummaries.length > 0 ||
+    diagnosticGroups.length > 0
+
+  return {
+    serviceId: instance.serviceId,
+    artifactId: instance.artifactId,
+    status: instance.status,
+    runtimePort: instance.runtimePort,
+    severity: hasError ? 'error' : hasWarning ? 'warn' : 'ok',
+    buildIssueCount: buildSummaries.length,
+    runtimeIssueCount: runtimeSummaries.length,
+    diagnosticCount: lineViews.filter((line) => line.isDiagnostic).length,
+    rootCauseLabel: rootCauseAnalysis.rootCause?.label ?? diagnosticGroups[0]?.label ?? null,
+    rootCauseLineNumber: rootCauseAnalysis.rootCause?.lineNumber ?? diagnosticGroups[0]?.latestLineView.lineNumber ?? null
+  }
+}
+
 async function scrollToLogLine(panel: HTMLElement | null, lineNumber: number) {
   await nextTick()
 
@@ -2325,6 +2379,31 @@ const logWorkspaceServices = computed(() =>
   )
 )
 
+const serviceDiagnosticComparisons = computed(() =>
+  logWorkspaceServices.value
+    .map((instance) => buildServiceDiagnosticComparison(instance))
+    .sort((left, right) => {
+      const severityScore = { error: 2, warn: 1, ok: 0 }
+      const severityDelta = severityScore[right.severity] - severityScore[left.severity]
+
+      if (severityDelta !== 0) {
+        return severityDelta
+      }
+
+      const issueDelta =
+        right.buildIssueCount +
+        right.runtimeIssueCount +
+        right.diagnosticCount -
+        (left.buildIssueCount + left.runtimeIssueCount + left.diagnosticCount)
+
+      if (issueDelta !== 0) {
+        return issueDelta
+      }
+
+      return left.artifactId.localeCompare(right.artifactId, 'zh-CN')
+    })
+)
+
 const scannedServiceCount = computed(() => {
   if (!projectScan.value) {
     return 0
@@ -3295,6 +3374,56 @@ const closeActionOptions = computed(() => [
         <p class="muted">{{ text.logsWorkspaceEmpty }}</p>
       </template>
       <template v-else>
+        <div
+          v-if="logWorkspaceServices.length > 1"
+          class="log-summary-panel service-comparison-panel"
+        >
+          <div class="project-panel__subheader">
+            <h3>{{ text.serviceComparisonTitle }}</h3>
+            <span class="pill ghost">
+              {{ serviceDiagnosticComparisons.length }}
+            </span>
+          </div>
+
+          <template v-if="serviceDiagnosticComparisons.length === 0">
+            <p class="muted">{{ text.serviceComparisonEmpty }}</p>
+          </template>
+          <template v-else>
+            <div class="service-comparison-grid">
+              <button
+                v-for="comparison in serviceDiagnosticComparisons"
+                :key="comparison.serviceId"
+                class="service-comparison-card"
+                :class="[
+                  `service-comparison-card--${comparison.severity}`,
+                  { active: selectedLogServiceId === comparison.serviceId }
+                ]"
+                type="button"
+                @click="selectedLogServiceId = comparison.serviceId"
+              >
+                <strong>{{ comparison.artifactId }}</strong>
+                <span>{{ text.serviceStatus }}: {{ getServiceStatusLabel(comparison.status) }}</span>
+                <span>{{ text.servicePort }}: {{ formatPort(comparison.runtimePort) }}</span>
+                <div class="service-comparison-card__metrics">
+                  <em>{{ text.serviceComparisonBuildIssues }}: {{ comparison.buildIssueCount }}</em>
+                  <em>{{ text.serviceComparisonRuntimeIssues }}: {{ comparison.runtimeIssueCount }}</em>
+                  <em>{{ text.serviceLogDiagnosticCount }}: {{ comparison.diagnosticCount }}</em>
+                </div>
+                <p v-if="comparison.rootCauseLabel">
+                  {{ text.serviceRootCauseLikely }}:
+                  {{ comparison.rootCauseLabel }}
+                  <span v-if="comparison.rootCauseLineNumber">
+                    · {{ text.serviceLogLinePrefix }} {{ comparison.rootCauseLineNumber }}
+                  </span>
+                </p>
+                <p v-else>
+                  {{ text.serviceComparisonNoRootCause }}
+                </p>
+              </button>
+            </div>
+          </template>
+        </div>
+
         <div class="workspace-layout">
           <aside class="workspace-sidebar">
             <button
