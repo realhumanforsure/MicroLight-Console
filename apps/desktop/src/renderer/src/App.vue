@@ -2475,32 +2475,6 @@ watch(
   }
 )
 
-const logWorkspaceServices = computed(() => {
-  const scannedServiceIds = new Set(scannedServiceViews.value.map((service) => service.serviceId))
-  const instances = Object.values(serviceInstances.value)
-  const visibleInstances =
-    scannedServiceIds.size > 0
-      ? instances.filter((instance) => scannedServiceIds.has(instance.serviceId))
-      : instances
-
-  return visibleInstances.sort((left, right) => left.artifactId.localeCompare(right.artifactId, 'zh-CN'))
-})
-
-watch(
-  logWorkspaceServices,
-  (services) => {
-    if (services.length === 0) {
-      selectedLogServiceId.value = ''
-      return
-    }
-
-    if (!services.some((service) => service.serviceId === selectedLogServiceId.value)) {
-      selectedLogServiceId.value = services[0].serviceId
-    }
-  },
-  { deep: true }
-)
-
 const scannedServiceCount = computed(() => {
   if (!projectScan.value) {
     return 0
@@ -2565,6 +2539,32 @@ const activeScannedServiceInstance = computed(() =>
 const activeLogServiceView = computed(() =>
   scannedServiceViews.value.find((service) => service.serviceId === selectedLogServiceId.value) ??
   activeScannedService.value
+)
+
+const logWorkspaceServices = computed(() => {
+  const scannedServiceIds = new Set(scannedServiceViews.value.map((service) => service.serviceId))
+  const instances = Object.values(serviceInstances.value)
+  const visibleInstances =
+    scannedServiceIds.size > 0
+      ? instances.filter((instance) => scannedServiceIds.has(instance.serviceId))
+      : instances
+
+  return visibleInstances.sort((left, right) => left.artifactId.localeCompare(right.artifactId, 'zh-CN'))
+})
+
+watch(
+  logWorkspaceServices,
+  (services) => {
+    if (services.length === 0) {
+      selectedLogServiceId.value = ''
+      return
+    }
+
+    if (!services.some((service) => service.serviceId === selectedLogServiceId.value)) {
+      selectedLogServiceId.value = services[0].serviceId
+    }
+  },
+  { deep: true }
 )
 
 const lastServiceGroup = computed(() => serviceGroups.value[0] ?? null)
