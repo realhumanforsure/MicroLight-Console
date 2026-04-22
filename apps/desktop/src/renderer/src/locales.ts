@@ -154,6 +154,12 @@ interface LocaleMessages {
   serviceMemory: string
   serviceLogFile: string
   serviceLogs: string
+  serviceLogHistoryTitle: string
+  serviceLogHistoryLoading: string
+  serviceLogHistoryEmpty: string
+  serviceLogHistoryLines: string
+  serviceLogHistoryActive: string
+  serviceLogHistoryTruncated: string
   serviceIdle: string
   serviceBuilding: string
   serviceRunning: string
@@ -375,6 +381,12 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceMemory: '内存',
     serviceLogFile: '日志文件',
     serviceLogs: '最近日志',
+    serviceLogHistoryTitle: '历史日志',
+    serviceLogHistoryLoading: '正在读取历史日志...',
+    serviceLogHistoryEmpty: '当前还没有可读取的历史日志文件。',
+    serviceLogHistoryLines: '总行数',
+    serviceLogHistoryActive: '当前运行文件',
+    serviceLogHistoryTruncated: '仅展示最近 400 行',
     serviceIdle: '空闲',
     serviceBuilding: '构建中',
     serviceRunning: '运行中',
@@ -592,6 +604,12 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceMemory: 'Memory',
     serviceLogFile: 'Log File',
     serviceLogs: 'Recent Logs',
+    serviceLogHistoryTitle: 'Log History',
+    serviceLogHistoryLoading: 'Loading log history...',
+    serviceLogHistoryEmpty: 'No historical log file is available yet.',
+    serviceLogHistoryLines: 'Total Lines',
+    serviceLogHistoryActive: 'Current Active File',
+    serviceLogHistoryTruncated: 'Showing the latest 400 lines only',
     serviceIdle: 'Idle',
     serviceBuilding: 'Building',
     serviceRunning: 'Running',

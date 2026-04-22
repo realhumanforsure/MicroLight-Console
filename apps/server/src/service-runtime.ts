@@ -8,6 +8,8 @@ import pidusage from 'pidusage'
 import { DEFAULT_HEALTH_CHECK_PATH, DEFAULT_MAVEN_THREADS } from '@microlight/shared'
 import type {
   BuildToolKind,
+  ServiceLogContentResponse,
+  ServiceLogHistoryEntry,
   ServiceHealthStatus,
   ServiceInstanceState,
   ServiceLaunchRequest,
@@ -16,6 +18,7 @@ import type {
 import { resolveBuildCommand, runStreamingCommand } from './runtime-tools.js'
 
 const MAX_LOG_LINES = 200
+const MAX_HISTORY_LOG_LINES = 400
 
 interface ManagedServiceInstance {
   state: ServiceInstanceState
@@ -42,6 +45,21 @@ class ServiceRuntimeManager {
 
   getInstance(serviceId: string) {
     return this.instances.get(serviceId)?.state ?? null
+  }
+
+  async getLogHistory(serviceId: string) {
+    return listServiceLogHistory(serviceId, this.instances.get(serviceId)?.state.logFilePath ?? null)
+  }
+
+  async readLogHistory(serviceId: string, entryId: string) {
+    const entries = await this.getLogHistory(serviceId)
+    const entry = entries.find((item) => item.id === entryId)
+
+    if (!entry) {
+      throw new Error(`Log entry ${entryId} was not found for service ${serviceId}.`)
+    }
+
+    return readServiceLogHistoryEntry(serviceId, entry)
   }
 
   subscribe(serviceId: string, listener: (state: ServiceInstanceState) => void) {
@@ -596,15 +614,81 @@ export function createServiceId(artifactId: string, mainClass: string) {
 }
 
 async function createServiceLogStream(serviceId: string) {
-  const logsDirectory = path.join(os.tmpdir(), 'microlight-console', 'logs')
+  const logsDirectory = resolveLogsDirectory()
   await fs.mkdir(logsDirectory, { recursive: true })
-  const safeServiceId = serviceId.replace(/[^\w.-]+/g, '_')
+  const safeServiceId = toSafeServiceId(serviceId)
   const logFilePath = path.join(logsDirectory, `${safeServiceId}-${Date.now()}.log`)
 
   return {
     logFilePath,
     stream: createWriteStream(logFilePath, { flags: 'a' })
   }
+}
+
+async function listServiceLogHistory(
+  serviceId: string,
+  activeLogFilePath: string | null
+): Promise<ServiceLogHistoryEntry[]> {
+  const logsDirectory = resolveLogsDirectory()
+  const safeServiceId = toSafeServiceId(serviceId)
+
+  try {
+    const entries = await fs.readdir(logsDirectory, { withFileTypes: true })
+    const logEntries = await Promise.all(
+      entries
+        .filter((entry) => entry.isFile() && entry.name.startsWith(`${safeServiceId}-`) && entry.name.endsWith('.log'))
+        .map(async (entry) => {
+          const filePath = path.join(logsDirectory, entry.name)
+          const stat = await fs.stat(filePath)
+
+          return {
+            id: entry.name,
+            serviceId,
+            fileName: entry.name,
+            filePath,
+            createdAt: stat.birthtime.toISOString(),
+            sizeBytes: stat.size,
+            isActive: activeLogFilePath === filePath
+          } satisfies ServiceLogHistoryEntry
+        })
+    )
+
+    return logEntries.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return []
+    }
+
+    throw error
+  }
+}
+
+async function readServiceLogHistoryEntry(
+  serviceId: string,
+  entry: ServiceLogHistoryEntry
+): Promise<ServiceLogContentResponse> {
+  const fileContent = await fs.readFile(entry.filePath, 'utf8')
+  const lines = fileContent
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+  const truncated = lines.length > MAX_HISTORY_LOG_LINES
+
+  return {
+    serviceId,
+    entry,
+    lines: truncated ? lines.slice(-MAX_HISTORY_LOG_LINES) : lines,
+    totalLines: lines.length,
+    truncated
+  }
+}
+
+function resolveLogsDirectory() {
+  return path.join(os.tmpdir(), 'microlight-console', 'logs')
+}
+
+function toSafeServiceId(serviceId: string) {
+  return serviceId.replace(/[^\w.-]+/g, '_')
 }
 
 async function closeManagedLogStream(instance: ManagedServiceInstance) {

@@ -21,6 +21,8 @@ import {
   type ServiceGroupSaveRequest,
   type ServiceGroupStopRequest,
   type ServiceGroupsResponse,
+  type ServiceLogContentResponse,
+  type ServiceLogHistoryResponse,
   type ServiceInstancesResponse,
   type ServiceLaunchRequest,
   type ServiceRestartRequest,
@@ -146,6 +148,39 @@ export async function createServer() {
       instances: serviceRuntimeManager.getInstances()
     }
   })
+
+  app.get<{ Params: { serviceId: string } }>(
+    '/api/services/:serviceId/logs/history',
+    async (request, reply): Promise<ServiceLogHistoryResponse | { message: string }> => {
+      try {
+        return {
+          serviceId: request.params.serviceId,
+          entries: await serviceRuntimeManager.getLogHistory(request.params.serviceId)
+        }
+      } catch (error) {
+        request.log.error(error)
+        reply.code(400)
+        return {
+          message: error instanceof Error ? error.message : 'Failed to load log history'
+        }
+      }
+    }
+  )
+
+  app.get<{ Params: { serviceId: string; entryId: string } }>(
+    '/api/services/:serviceId/logs/history/:entryId',
+    async (request, reply): Promise<ServiceLogContentResponse | { message: string }> => {
+      try {
+        return await serviceRuntimeManager.readLogHistory(request.params.serviceId, request.params.entryId)
+      } catch (error) {
+        request.log.error(error)
+        reply.code(400)
+        return {
+          message: error instanceof Error ? error.message : 'Failed to load log content'
+        }
+      }
+    }
+  )
 
   app.get('/api/service-groups', async (): Promise<ServiceGroupsResponse> => {
     return {

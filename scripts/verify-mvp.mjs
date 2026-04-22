@@ -1,4 +1,4 @@
-import { access, cp, mkdir, rm } from 'node:fs/promises'
+import { access, cp, mkdir, rm, writeFile } from 'node:fs/promises'
 import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
@@ -103,6 +103,37 @@ try {
     )
 
     return `兼容矩阵 ${payload.compatibilityMatrix.length} 条，推荐构建器 ${payload.recommendedBuildTool ?? 'none'}`
+  })
+
+  await check('service-log-history', '历史日志检索', async () => {
+    const serviceId = 'demo-service:com.example.DemoApplication'
+    const logsDirectory = path.join(os.tmpdir(), 'microlight-console', 'logs')
+    const entryId = 'demo-service_com.example.DemoApplication-123456789.log'
+    const logFilePath = path.join(logsDirectory, entryId)
+
+    await mkdir(logsDirectory, { recursive: true })
+    await writeFile(logFilePath, ['first line', 'second line', 'third line'].join('\n'), 'utf8')
+
+    try {
+      const historyResponse = await app.inject(`/api/services/${encodeURIComponent(serviceId)}/logs/history`)
+      const historyPayload = historyResponse.json()
+
+      assert(historyResponse.statusCode === 200, `历史日志列表返回 ${historyResponse.statusCode}`)
+      assert(historyPayload.entries.some((entry) => entry.id === entryId), '历史日志列表缺少新写入的日志文件')
+
+      const contentResponse = await app.inject(
+        `/api/services/${encodeURIComponent(serviceId)}/logs/history/${encodeURIComponent(entryId)}`
+      )
+      const contentPayload = contentResponse.json()
+
+      assert(contentResponse.statusCode === 200, `历史日志内容返回 ${contentResponse.statusCode}`)
+      assert(contentPayload.lines.length === 3, `历史日志行数异常：${contentPayload.lines.length}`)
+      assert(contentPayload.lines[2] === 'third line', `历史日志末行异常：${contentPayload.lines[2]}`)
+
+      return `读取 ${contentPayload.lines.length} 行历史日志`
+    } finally {
+      await rm(logFilePath, { force: true })
+    }
   })
 
   await check('unicode-path-scan', '中文与空格路径扫描', async () => {

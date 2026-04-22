@@ -193,6 +193,29 @@ export interface ServiceInstancesResponse {
   instances: ServiceInstanceState[]
 }
 
+export interface ServiceLogHistoryEntry {
+  id: string
+  serviceId: string
+  fileName: string
+  filePath: string
+  createdAt: string
+  sizeBytes: number
+  isActive: boolean
+}
+
+export interface ServiceLogHistoryResponse {
+  serviceId: string
+  entries: ServiceLogHistoryEntry[]
+}
+
+export interface ServiceLogContentResponse {
+  serviceId: string
+  entry: ServiceLogHistoryEntry
+  lines: string[]
+  totalLines: number
+  truncated: boolean
+}
+
 export type ServiceGroupStatus = 'running' | 'completed' | 'failed' | 'stopping' | 'stopped'
 export type ServiceGroupItemStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped'
 

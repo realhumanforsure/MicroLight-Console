@@ -32,6 +32,8 @@ import {
   type ServiceGroupInstance,
   type ServiceGroupLaunchRequest,
   type ServiceGroupSaveRequest,
+  type ServiceLogContentResponse,
+  type ServiceLogHistoryEntry,
   type ServiceInstanceState,
   type ServiceLaunchRequest,
   type ServiceStreamEvent,
@@ -74,11 +76,15 @@ const appSettings = ref<AppSettings>({
 })
 const recentProjects = ref<RecentProject[]>([])
 const selectedLogServiceId = ref('')
+const logHistoryEntries = ref<ServiceLogHistoryEntry[]>([])
+const selectedLogHistoryId = ref('')
+const activeLogHistory = ref<ServiceLogContentResponse | null>(null)
 const loading = ref(true)
 const preflightLoading = ref(false)
 const releaseLoading = ref(false)
 const scanning = ref(false)
 const detecting = ref(false)
+const logHistoryLoading = ref(false)
 const errorMessage = ref('')
 const scanErrorMessage = ref('')
 const runtimeErrorMessage = ref('')
@@ -161,6 +167,14 @@ watch(projectScan, (scanResult) => {
 watch(selectedLogServiceId, (serviceId) => {
   if (!selectedProjectPath.value) {
     return
+  }
+
+  if (!serviceId) {
+    logHistoryEntries.value = []
+    selectedLogHistoryId.value = ''
+    activeLogHistory.value = null
+  } else {
+    void loadLogHistory(serviceId)
   }
 
   void saveProjectPreference(serviceId || null)
@@ -703,6 +717,18 @@ function formatPort(port: number | null) {
   return port === null ? text.value.runtimePending : String(port)
 }
 
+function formatFileSize(sizeBytes: number) {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`
+  }
+
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`
+  }
+
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`
+}
+
 function createServiceLaunchRequest(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
   const launchConfig = getLaunchConfig(artifactId, candidate)
   const serviceId = getServiceId(artifactId, candidate.mainClass)
@@ -784,6 +810,7 @@ async function launchService(modulePath: string, artifactId: string, candidate: 
       [instance.serviceId]: instance
     }
     selectedLogServiceId.value = instance.serviceId
+    await loadLogHistory(instance.serviceId)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown launch error'
   } finally {
@@ -827,6 +854,10 @@ async function launchScannedServiceGroup() {
     serviceGroups.value = [group, ...serviceGroups.value.filter((item) => item.groupId !== group.groupId)]
     selectedLogServiceId.value = group.services.find((service) => service.instance)?.serviceId ?? selectedLogServiceId.value
     await refreshInstances()
+
+    if (selectedLogServiceId.value) {
+      await loadLogHistory(selectedLogServiceId.value)
+    }
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown service group error'
   } finally {
@@ -913,6 +944,10 @@ async function launchSavedServiceGroup(group: SavedServiceGroup) {
     selectedLogServiceId.value =
       launchedGroup.services.find((service) => service.instance)?.serviceId ?? selectedLogServiceId.value
     await refreshInstances()
+
+    if (selectedLogServiceId.value) {
+      await loadLogHistory(selectedLogServiceId.value)
+    }
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown service group error'
   } finally {
@@ -1029,6 +1064,7 @@ async function stopService(serviceId: string) {
       [instance.serviceId]: instance
     }
     selectedLogServiceId.value = instance.serviceId
+    await loadLogHistory(instance.serviceId)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown stop error'
   } finally {
@@ -1059,6 +1095,7 @@ async function restartService(serviceId: string) {
       ...serviceInstances.value,
       [instance.serviceId]: instance
     }
+    await loadLogHistory(instance.serviceId)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown restart error'
   } finally {
@@ -1082,6 +1119,67 @@ async function refreshInstances() {
   } catch {
     // Ignore background refresh failures in the initial implementation.
   }
+}
+
+async function loadLogHistory(serviceId: string) {
+  logHistoryLoading.value = true
+
+  try {
+    const response = await fetch(
+      `${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/${encodeURIComponent(serviceId)}/logs/history`
+    )
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Log history failed: ${response.status}`)
+    }
+
+    const payload = (await response.json()) as { entries: ServiceLogHistoryEntry[] }
+    logHistoryEntries.value = payload.entries
+
+    const nextEntryId =
+      payload.entries.find((entry) => entry.id === selectedLogHistoryId.value)?.id ??
+      payload.entries[0]?.id ??
+      ''
+
+    selectedLogHistoryId.value = nextEntryId
+
+    if (nextEntryId) {
+      await loadLogHistoryContent(serviceId, nextEntryId)
+    } else {
+      activeLogHistory.value = null
+    }
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log history error'
+    logHistoryEntries.value = []
+    selectedLogHistoryId.value = ''
+    activeLogHistory.value = null
+  } finally {
+    logHistoryLoading.value = false
+  }
+}
+
+async function loadLogHistoryContent(serviceId: string, entryId: string) {
+  if (!entryId) {
+    activeLogHistory.value = null
+    return
+  }
+
+  const response = await fetch(
+    `${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/${encodeURIComponent(serviceId)}/logs/history/${encodeURIComponent(entryId)}`
+  )
+
+  if (!response.ok) {
+    const payload = (await response.json()) as { message?: string }
+    throw new Error(payload.message ?? `Log content failed: ${response.status}`)
+  }
+
+  activeLogHistory.value = (await response.json()) as ServiceLogContentResponse
+}
+
+function selectLogHistoryEntry(serviceId: string, entryId: string) {
+  selectedLogHistoryId.value = entryId
+  void loadLogHistoryContent(serviceId, entryId)
 }
 
 function ensureLogStream(serviceId: string) {
@@ -1124,6 +1222,10 @@ const activeLogInstance = computed(() => {
 
   return serviceInstances.value[selectedLogServiceId.value] ?? null
 })
+
+const activeLogHistoryEntry = computed(() =>
+  logHistoryEntries.value.find((entry) => entry.id === selectedLogHistoryId.value) ?? null
+)
 
 const logWorkspaceServices = computed(() =>
   Object.values(serviceInstances.value).sort((left, right) =>
@@ -2150,6 +2252,72 @@ const closeActionOptions = computed(() => [
               <div class="logs-panel logs-panel--workspace">
                 <span>{{ text.serviceLogs }}</span>
                 <pre>{{ activeLogInstance.logLines.join('\n') || text.serviceNoLogs }}</pre>
+              </div>
+
+              <div class="service-group-panel">
+                <div class="project-panel__subheader">
+                  <h3>{{ text.serviceLogHistoryTitle }}</h3>
+                  <span class="pill ghost">
+                    {{ logHistoryEntries.length }}
+                  </span>
+                </div>
+
+                <template v-if="logHistoryLoading">
+                  <p class="muted">{{ text.serviceLogHistoryLoading }}</p>
+                </template>
+                <template v-else-if="logHistoryEntries.length === 0">
+                  <p class="muted">{{ text.serviceLogHistoryEmpty }}</p>
+                </template>
+                <template v-else>
+                  <div class="workspace-layout">
+                    <aside class="workspace-sidebar">
+                      <button
+                        v-for="entry in logHistoryEntries"
+                        :key="entry.id"
+                        class="workspace-service-button"
+                        :class="{ active: selectedLogHistoryId === entry.id }"
+                        type="button"
+                        @click="selectLogHistoryEntry(activeLogInstance.serviceId, entry.id)"
+                      >
+                        <strong>{{ entry.fileName }}</strong>
+                        <span>{{ entry.createdAt }}</span>
+                        <span>{{ formatFileSize(entry.sizeBytes) }}</span>
+                      </button>
+                    </aside>
+
+                    <div class="workspace-main">
+                      <template v-if="activeLogHistory && activeLogHistoryEntry">
+                        <div class="workspace-meta">
+                          <span>{{ text.serviceLogFile }}</span>
+                          <strong>{{ activeLogHistory.entry.filePath }}</strong>
+                        </div>
+
+                        <div class="scan-meta">
+                          <div class="pill ghost">
+                            {{ text.serviceLogHistoryLines }}: {{ activeLogHistory.totalLines }}
+                          </div>
+                          <div
+                            v-if="activeLogHistory.entry.isActive"
+                            class="pill ghost"
+                          >
+                            {{ text.serviceLogHistoryActive }}
+                          </div>
+                          <div
+                            v-if="activeLogHistory.truncated"
+                            class="pill ghost pill--warn"
+                          >
+                            {{ text.serviceLogHistoryTruncated }}
+                          </div>
+                        </div>
+
+                        <div class="logs-panel logs-panel--workspace">
+                          <span>{{ text.serviceLogHistoryTitle }}</span>
+                          <pre>{{ activeLogHistory.lines.join('\n') || text.serviceNoLogs }}</pre>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
               </div>
             </template>
 
