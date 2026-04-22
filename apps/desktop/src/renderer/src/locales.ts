@@ -99,7 +99,6 @@ interface LocaleMessages {
   settingsMaven: string
   settingsMvnd: string
   settingsNoRecentProjects: string
-  copySuccessToast: string
   healthTitle: string
   healthChecking: string
   healthHealthy: string
@@ -203,10 +202,10 @@ interface LocaleMessages {
   serviceLogCopy: string
   serviceLogExport: string
   serviceLogActionEmpty: string
-  serviceLogCopiedSuffix: string
   serviceLogExportedPrefix: string
   serviceLogPauseScroll: string
   serviceLogResumeScroll: string
+  serviceLogClearConsole: string
   serviceLogPaused: string
   serviceLogVisibleLines: string
   serviceLogDiagnosticCount: string
@@ -443,7 +442,6 @@ export const messages: Record<Locale, LocaleMessages> = {
     settingsMaven: 'System Maven',
     settingsMvnd: 'mvnd',
     settingsNoRecentProjects: '还没有最近项目记录。',
-    copySuccessToast: '复制成功，内容已写入剪贴板。',
     healthTitle: '健康检查',
     healthChecking: '正在检查后端健康状态...',
     healthHealthy: '健康',
@@ -547,10 +545,10 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogCopy: '复制日志',
     serviceLogExport: '导出日志',
     serviceLogActionEmpty: '当前没有可复制或导出的日志内容。',
-    serviceLogCopiedSuffix: ' 已复制到剪贴板。',
     serviceLogExportedPrefix: '日志已导出到：',
     serviceLogPauseScroll: '停止保持最新',
     serviceLogResumeScroll: '保持最新',
+    serviceLogClearConsole: '清空当前终端',
     serviceLogPaused: '自动跟随已暂停',
     serviceLogVisibleLines: '当前展示',
     serviceLogDiagnosticCount: '异常命中',
@@ -783,7 +781,6 @@ export const messages: Record<Locale, LocaleMessages> = {
     settingsMaven: 'System Maven',
     settingsMvnd: 'mvnd',
     settingsNoRecentProjects: 'No recent projects yet.',
-    copySuccessToast: 'Copied to clipboard.',
     healthTitle: 'Health Check',
     healthChecking: 'Checking backend health...',
     healthHealthy: 'Healthy',
@@ -887,10 +884,10 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogCopy: 'Copy Logs',
     serviceLogExport: 'Export Logs',
     serviceLogActionEmpty: 'There are no logs available to copy or export.',
-    serviceLogCopiedSuffix: ' copied to clipboard.',
     serviceLogExportedPrefix: 'Logs exported to: ',
     serviceLogPauseScroll: 'Stop Following',
     serviceLogResumeScroll: 'Follow Latest',
+    serviceLogClearConsole: 'Clear Current Console',
     serviceLogPaused: 'Auto-follow paused',
     serviceLogVisibleLines: 'Visible Lines',
     serviceLogDiagnosticCount: 'Diagnostic Hits',

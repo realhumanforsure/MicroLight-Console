@@ -171,13 +171,11 @@ const settingsWorkspaceRef = ref<HTMLElement | null>(null)
 const releaseWorkspaceRef = ref<HTMLElement | null>(null)
 const selectedLiveDiagnosticLineNumber = ref<number | null>(null)
 const selectedHistoryDiagnosticLineNumber = ref<number | null>(null)
-const toastMessage = ref('')
 const text = computed(() => messages[locale.value])
 const logStreams = new Map<string, EventSource>()
 const embeddedLogPanelRefs = new Map<string, HTMLElement>()
 const embeddedLogFollowState = ref<Record<string, boolean>>({})
 let refreshTimer: number | null = null
-let toastTimer: number | null = null
 
 onMounted(() => {
   void initializeApp()
@@ -191,11 +189,6 @@ onBeforeUnmount(() => {
   if (refreshTimer !== null) {
     window.clearInterval(refreshTimer)
     refreshTimer = null
-  }
-
-  if (toastTimer !== null) {
-    window.clearTimeout(toastTimer)
-    toastTimer = null
   }
 
   for (const stream of logStreams.values()) {
@@ -678,19 +671,6 @@ function createLaunchConfig(candidate: ServiceCandidate): ServiceLaunchConfig {
     mavenThreads: candidate.savedMavenThreads,
     dependsOnServiceIds: []
   }
-}
-
-function showToast(message: string) {
-  toastMessage.value = message
-
-  if (toastTimer !== null) {
-    window.clearTimeout(toastTimer)
-  }
-
-  toastTimer = window.setTimeout(() => {
-    toastMessage.value = ''
-    toastTimer = null
-  }, 2200)
 }
 
 function getLaunchConfig(artifactId: string, candidate: ServiceCandidate) {
@@ -1607,6 +1587,34 @@ function toggleEmbeddedLogFollow(serviceId: string) {
   }
 }
 
+async function clearServiceLogs(serviceId: string) {
+  runtimeErrorMessage.value = ''
+  logWorkspaceMessage.value = ''
+
+  try {
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/clear-logs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ serviceId })
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Clear logs failed: ${response.status}`)
+    }
+
+    const instance = (await response.json()) as ServiceInstanceState
+    serviceInstances.value = {
+      ...serviceInstances.value,
+      [instance.serviceId]: instance
+    }
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown clear logs error'
+  }
+}
+
 function buildLogExportContent(title: string, sourcePath: string | null, lines: string[]) {
   const header = [
     `${title}`,
@@ -1653,8 +1661,6 @@ async function copyLogs(title: string, lineViews: LogLineView[]) {
   }
 
   await window.microlight.copyText(lineViews.map((line) => line.text).join('\n'))
-  logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
-  showToast(text.value.copySuccessToast)
 }
 
 async function exportLogs(title: string, sourcePath: string | null, fileNameBase: string, lineViews: LogLineView[]) {
@@ -1814,8 +1820,6 @@ async function copyDiagnosticBundle(
     }
 
     await window.microlight.copyText(buildDiagnosticBundleContent(title, sourcePath, groups, sourceLines))
-    logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
-    showToast(text.value.copySuccessToast)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
   }
@@ -1872,8 +1876,6 @@ async function copyRootCauseAnalysis(title: string, analysis: RootCauseAnalysisV
     ].join('\n')
 
     await window.microlight.copyText(content)
-    logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
-    showToast(text.value.copySuccessToast)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
   }
@@ -3793,17 +3795,45 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                   <div class="logs-panel logs-panel--resizable">
                     <div class="logs-panel__header">
                       <span>{{ text.serviceLogs }}</span>
-                      <button
-                        class="secondary-button logs-panel__action"
-                        type="button"
-                        @click="toggleEmbeddedLogFollow(getServiceId(module.artifactId, candidate.mainClass))"
-                      >
-                        {{
-                          isEmbeddedLogFollowEnabled(getServiceId(module.artifactId, candidate.mainClass))
-                            ? text.serviceLogPauseScroll
-                            : text.serviceLogResumeScroll
-                        }}
-                      </button>
+                      <div class="terminal-action-rail">
+                        <button
+                          class="terminal-icon-button"
+                          type="button"
+                          :title="
+                            isEmbeddedLogFollowEnabled(getServiceId(module.artifactId, candidate.mainClass))
+                              ? text.serviceLogPauseScroll
+                              : text.serviceLogResumeScroll
+                          "
+                          :aria-label="
+                            isEmbeddedLogFollowEnabled(getServiceId(module.artifactId, candidate.mainClass))
+                              ? text.serviceLogPauseScroll
+                              : text.serviceLogResumeScroll
+                          "
+                          @click="toggleEmbeddedLogFollow(getServiceId(module.artifactId, candidate.mainClass))"
+                        >
+                          <span
+                            class="terminal-icon"
+                            :class="
+                              isEmbeddedLogFollowEnabled(getServiceId(module.artifactId, candidate.mainClass))
+                                ? 'terminal-icon--pause'
+                                : 'terminal-icon--follow'
+                            "
+                            aria-hidden="true"
+                          ></span>
+                        </button>
+                        <button
+                          class="terminal-icon-button"
+                          type="button"
+                          :title="text.serviceLogClearConsole"
+                          :aria-label="text.serviceLogClearConsole"
+                          @click="clearServiceLogs(getServiceId(module.artifactId, candidate.mainClass))"
+                        >
+                          <span
+                            class="terminal-icon terminal-icon--clear"
+                            aria-hidden="true"
+                          ></span>
+                        </button>
+                      </div>
                     </div>
                     <pre
                       :ref="setEmbeddedLogPanelRef(getServiceId(module.artifactId, candidate.mainClass))"
@@ -3986,13 +4016,6 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                     @click="exportLiveLogs"
                   >
                     {{ text.serviceLogExport }}
-                  </button>
-                  <button
-                    class="secondary-button log-toolbar__button"
-                    type="button"
-                    @click="toggleLiveLogFollow"
-                  >
-                    {{ liveLogFollowEnabled ? text.serviceLogPauseScroll : text.serviceLogResumeScroll }}
                   </button>
                 </div>
               </div>
@@ -4236,7 +4259,36 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
               </div>
 
               <div class="logs-panel logs-panel--workspace">
-                <span>{{ text.serviceLogs }}</span>
+                <div class="logs-panel__header">
+                  <span>{{ text.serviceLogs }}</span>
+                  <div class="terminal-action-rail">
+                    <button
+                      class="terminal-icon-button"
+                      type="button"
+                      :title="liveLogFollowEnabled ? text.serviceLogPauseScroll : text.serviceLogResumeScroll"
+                      :aria-label="liveLogFollowEnabled ? text.serviceLogPauseScroll : text.serviceLogResumeScroll"
+                      @click="toggleLiveLogFollow"
+                    >
+                      <span
+                        class="terminal-icon"
+                        :class="liveLogFollowEnabled ? 'terminal-icon--pause' : 'terminal-icon--follow'"
+                        aria-hidden="true"
+                      ></span>
+                    </button>
+                    <button
+                      class="terminal-icon-button"
+                      type="button"
+                      :title="text.serviceLogClearConsole"
+                      :aria-label="text.serviceLogClearConsole"
+                      @click="clearServiceLogs(activeLogInstance.serviceId)"
+                    >
+                      <span
+                        class="terminal-icon terminal-icon--clear"
+                        aria-hidden="true"
+                      ></span>
+                    </button>
+                  </div>
+                </div>
                 <div
                   v-if="filteredActiveLogLineViews.length > 0"
                   ref="liveLogPanelRef"
@@ -4625,12 +4677,4 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
     </section>
   </main>
 
-  <div
-    v-if="toastMessage"
-    class="app-toast"
-    role="status"
-    aria-live="polite"
-  >
-    {{ toastMessage }}
-  </div>
 </template>

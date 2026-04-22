@@ -177,6 +177,10 @@ export interface ServiceStopRequest {
   serviceId: string
 }
 
+export interface ServiceClearLogsRequest {
+  serviceId: string
+}
+
 export interface ServiceRestartRequest {
   serviceId: string
 }

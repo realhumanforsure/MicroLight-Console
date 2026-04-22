@@ -20,6 +20,7 @@ import {
   type ReleaseReadinessResponse,
   type RuntimeDetectionRequest,
   type SavedServiceGroupsResponse,
+  type ServiceClearLogsRequest,
   type ServiceGroupDeleteRequest,
   type ServiceGroupLaunchRequest,
   type ServiceGroupSaveRequest,
@@ -337,6 +338,18 @@ export async function createServer() {
       reply.code(400)
       return {
         message: error instanceof Error ? error.message : 'Failed to stop service'
+      }
+    }
+  })
+
+  app.post<{ Body: ServiceClearLogsRequest }>('/api/services/clear-logs', async (request, reply) => {
+    try {
+      return serviceRuntimeManager.clearLogs(request.body.serviceId)
+    } catch (error) {
+      request.log.error(error)
+      reply.code(400)
+      return {
+        message: error instanceof Error ? error.message : 'Failed to clear service logs'
       }
     }
   })

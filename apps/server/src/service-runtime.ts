@@ -273,6 +273,19 @@ class ServiceRuntimeManager {
     return this.launchService(instance.lastLaunchRequest)
   }
 
+  clearLogs(serviceId: string) {
+    const instance = this.instances.get(serviceId)
+
+    if (!instance) {
+      throw new Error(`Service ${serviceId} was not found.`)
+    }
+
+    instance.state.logLines = []
+    instance.state.lastUpdatedAt = new Date().toISOString()
+    this.emitState(instance.state)
+    return instance.state
+  }
+
   private appendLog(state: ServiceInstanceState, content: string) {
     const lines = content
       .split(/\r?\n/)
@@ -456,7 +469,7 @@ function createDirectLaunchArgs(request: ServiceLaunchRequest, buildTool: BuildT
   }
 
   args.push('-Dspring-boot.run.fork=false')
-  args.push(`-Dspring-boot.run.mainClass=${request.mainClass}`)
+  args.push(`-Dspring-boot.run.main-class=${request.mainClass}`)
 
   const jvmArgs = parseCommandLineArguments(request.jvmArgs)
 

@@ -1231,13 +1231,96 @@ select {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  align-items: center;
+  align-items: flex-start;
 }
 
-.logs-panel__action {
-  min-height: 32px;
-  padding: 8px 12px;
-  font-size: 12px;
+.terminal-action-rail {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+
+.terminal-icon-button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(189, 210, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(11, 19, 35, 0.92);
+  color: #d9e7fb;
+  cursor: pointer;
+}
+
+.terminal-icon-button:hover {
+  border-color: rgba(121, 240, 200, 0.36);
+  background: rgba(15, 32, 43, 0.95);
+}
+
+.terminal-icon {
+  position: relative;
+  width: 14px;
+  height: 14px;
+}
+
+.terminal-icon::before,
+.terminal-icon::after {
+  position: absolute;
+  content: "";
+}
+
+.terminal-icon--follow::before {
+  left: 6px;
+  top: 1px;
+  width: 2px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.terminal-icon--follow::after {
+  left: 3px;
+  bottom: 1px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.terminal-icon--pause::before,
+.terminal-icon--pause::after {
+  top: 1px;
+  width: 4px;
+  height: 12px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.terminal-icon--pause::before {
+  left: 2px;
+}
+
+.terminal-icon--pause::after {
+  right: 2px;
+}
+
+.terminal-icon--clear::before,
+.terminal-icon--clear::after {
+  left: 2px;
+  top: 6px;
+  width: 10px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.terminal-icon--clear::before {
+  transform: rotate(45deg);
+}
+
+.terminal-icon--clear::after {
+  transform: rotate(-45deg);
 }
 
 .logs-panel span {
@@ -1364,20 +1447,6 @@ dd {
 
 .error {
   color: #ff9c9c;
-}
-
-.app-toast {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 40;
-  max-width: min(420px, calc(100vw - 40px));
-  padding: 12px 16px;
-  border: 1px solid rgba(121, 240, 200, 0.22);
-  border-radius: 14px;
-  background: rgba(7, 18, 32, 0.96);
-  color: #edf4ff;
-  box-shadow: 0 18px 36px rgba(3, 8, 18, 0.28);
 }
 
 @media (max-width: 920px) {
