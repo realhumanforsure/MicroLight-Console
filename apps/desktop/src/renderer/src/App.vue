@@ -1137,6 +1137,127 @@ function buildFailureSummaryViews(params: {
   return summaries.slice(0, 4)
 }
 
+function buildBuildFailureSummaryViews(params: {
+  lineViews: LogLineView[]
+  serviceStatus?: ServiceInstanceState['status']
+}) {
+  const summaries: FailureSummaryView[] = []
+
+  const pushSummary = (summary: FailureSummaryView) => {
+    if (summaries.some((item) => item.key === summary.key)) {
+      return
+    }
+
+    summaries.push(summary)
+  }
+
+  const dependencyLine = findLogLineByPatterns(params.lineViews, [
+    /\bcould not resolve dependencies\b/i,
+    /\bfailed to collect dependencies\b/i,
+    /\bnon-resolvable parent pom\b/i,
+    /\btransfer failed for\b/i
+  ])
+
+  if (dependencyLine) {
+    pushSummary({
+      key: 'build-dependency',
+      title: text.value.serviceBuildFailureDependencyTitle,
+      detail: dependencyLine.text,
+      hint: text.value.serviceBuildFailureDependencyHint,
+      severity: 'error'
+    })
+  }
+
+  const compilationLine = findLogLineByPatterns(params.lineViews, [
+    /\bcompilation failure\b/i,
+    /\bcannot find symbol\b/i,
+    /\bpackage .* does not exist\b/i,
+    /\brelease version .* not supported\b/i
+  ])
+
+  if (compilationLine) {
+    pushSummary({
+      key: 'build-compilation',
+      title: text.value.serviceBuildFailureCompilationTitle,
+      detail: compilationLine.text,
+      hint: text.value.serviceBuildFailureCompilationHint,
+      severity: 'error'
+    })
+  }
+
+  const testLine = findLogLineByPatterns(params.lineViews, [
+    /\bthere are test failures\b/i,
+    /\btests run: .* failures: [1-9]\d*/i,
+    /\bfailed tests:\b/i,
+    /\bsurefire\b.*\bfailed\b/i
+  ])
+
+  if (testLine) {
+    pushSummary({
+      key: 'build-test',
+      title: text.value.serviceBuildFailureTestTitle,
+      detail: testLine.text,
+      hint: text.value.serviceBuildFailureTestHint,
+      severity: 'warn'
+    })
+  }
+
+  const pluginLine = findLogLineByPatterns(params.lineViews, [
+    /\bfailed to execute goal\b/i,
+    /\bplugin execution not covered\b/i,
+    /\bplugin .* not found\b/i,
+    /\bmojoexecutionexception\b/i
+  ])
+
+  if (pluginLine) {
+    pushSummary({
+      key: 'build-plugin',
+      title: text.value.serviceBuildFailurePluginTitle,
+      detail: pluginLine.text,
+      hint: text.value.serviceBuildFailurePluginHint,
+      severity: 'error'
+    })
+  }
+
+  const javaEnvLine = findLogLineByPatterns(params.lineViews, [
+    /\bjava_home\b/i,
+    /\bno compiler is provided in this environment\b/i,
+    /\binvalid target release\b/i,
+    /\btoolchain\b.*\bnot found\b/i
+  ])
+
+  if (javaEnvLine) {
+    pushSummary({
+      key: 'build-java-env',
+      title: text.value.serviceBuildFailureJavaTitle,
+      detail: javaEnvLine.text,
+      hint: text.value.serviceBuildFailureJavaHint,
+      severity: 'error'
+    })
+  }
+
+  if (params.serviceStatus === 'failed' && summaries.length === 0) {
+    const genericBuildLine = findLogLineByPatterns(params.lineViews, [
+      /\bbuild failure\b/i,
+      /\bfailed to execute goal\b/i,
+      /\breactor summary\b/i,
+      /\bbuild failed\b/i
+    ])
+
+    if (genericBuildLine) {
+      pushSummary({
+        key: 'build-generic',
+        title: text.value.serviceBuildFailureGenericTitle,
+        detail: genericBuildLine.text,
+        hint: text.value.serviceBuildFailureGenericHint,
+        severity: 'error'
+      })
+    }
+  }
+
+  return summaries.slice(0, 4)
+}
+
 async function scrollToLogLine(panel: HTMLElement | null, lineNumber: number) {
   await nextTick()
 
@@ -2041,6 +2162,20 @@ const historyFailureSummaryViews = computed(() =>
     healthStatus: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.healthStatus : undefined,
     healthDetail: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.healthDetail ?? null : null,
     portReachable: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.portReachable ?? null : null
+  })
+)
+
+const liveBuildFailureSummaryViews = computed(() =>
+  buildBuildFailureSummaryViews({
+    lineViews: filteredActiveLogLineViews.value,
+    serviceStatus: activeLogInstance.value?.status
+  })
+)
+
+const historyBuildFailureSummaryViews = computed(() =>
+  buildBuildFailureSummaryViews({
+    lineViews: filteredHistoryLogLineViews.value,
+    serviceStatus: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.status : undefined
   })
 )
 
@@ -3241,6 +3376,33 @@ const closeActionOptions = computed(() => [
 
               <div class="log-summary-panel">
                 <div class="project-panel__subheader">
+                  <h3>{{ text.serviceBuildFailureSummaryTitle }}</h3>
+                </div>
+
+                <template v-if="liveBuildFailureSummaryViews.length === 0">
+                  <p class="muted">{{ text.serviceBuildFailureSummaryEmpty }}</p>
+                </template>
+                <template v-else>
+                  <div class="failure-summary-grid">
+                    <article
+                      v-for="summary in liveBuildFailureSummaryViews"
+                      :key="`live-build-failure-${summary.key}`"
+                      class="failure-summary-card"
+                      :class="{
+                        'failure-summary-card--error': summary.severity === 'error',
+                        'failure-summary-card--warn': summary.severity === 'warn'
+                      }"
+                    >
+                      <strong>{{ summary.title }}</strong>
+                      <p>{{ summary.detail }}</p>
+                      <span>{{ summary.hint }}</span>
+                    </article>
+                  </div>
+                </template>
+              </div>
+
+              <div class="log-summary-panel">
+                <div class="project-panel__subheader">
                   <h3>{{ text.serviceFailureSummaryTitle }}</h3>
                 </div>
 
@@ -3570,6 +3732,33 @@ const closeActionOptions = computed(() => [
                           >
                             {{ text.serviceLogHistoryTruncated }}
                           </div>
+                        </div>
+
+                        <div class="log-summary-panel">
+                          <div class="project-panel__subheader">
+                            <h3>{{ text.serviceBuildFailureSummaryTitle }}</h3>
+                          </div>
+
+                          <template v-if="historyBuildFailureSummaryViews.length === 0">
+                            <p class="muted">{{ text.serviceBuildFailureSummaryEmpty }}</p>
+                          </template>
+                          <template v-else>
+                            <div class="failure-summary-grid">
+                              <article
+                                v-for="summary in historyBuildFailureSummaryViews"
+                                :key="`history-build-failure-${summary.key}`"
+                                class="failure-summary-card"
+                                :class="{
+                                  'failure-summary-card--error': summary.severity === 'error',
+                                  'failure-summary-card--warn': summary.severity === 'warn'
+                                }"
+                              >
+                                <strong>{{ summary.title }}</strong>
+                                <p>{{ summary.detail }}</p>
+                                <span>{{ summary.hint }}</span>
+                              </article>
+                            </div>
+                          </template>
                         </div>
 
                         <div class="log-summary-panel">

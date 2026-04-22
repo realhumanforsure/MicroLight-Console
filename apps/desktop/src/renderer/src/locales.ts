@@ -195,6 +195,20 @@ interface LocaleMessages {
   serviceFailureSummaryEmpty: string
   serviceFailureRootCauseTitle: string
   serviceFailureRootCauseHint: string
+  serviceBuildFailureSummaryTitle: string
+  serviceBuildFailureSummaryEmpty: string
+  serviceBuildFailureGenericTitle: string
+  serviceBuildFailureGenericHint: string
+  serviceBuildFailureDependencyTitle: string
+  serviceBuildFailureDependencyHint: string
+  serviceBuildFailureCompilationTitle: string
+  serviceBuildFailureCompilationHint: string
+  serviceBuildFailureTestTitle: string
+  serviceBuildFailureTestHint: string
+  serviceBuildFailurePluginTitle: string
+  serviceBuildFailurePluginHint: string
+  serviceBuildFailureJavaTitle: string
+  serviceBuildFailureJavaHint: string
   serviceFailurePortConflictTitle: string
   serviceFailurePortConflictHint: string
   serviceFailureBuildTitle: string
@@ -475,6 +489,20 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceFailureSummaryEmpty: '当前还没有识别到明确的启动失败摘要。',
     serviceFailureRootCauseTitle: '根因候选',
     serviceFailureRootCauseHint: '优先检查这组异常及其上下文，通常最接近启动失败的直接原因。',
+    serviceBuildFailureSummaryTitle: '构建失败摘要',
+    serviceBuildFailureSummaryEmpty: '当前还没有识别到明确的构建失败摘要。',
+    serviceBuildFailureGenericTitle: '构建流程失败',
+    serviceBuildFailureGenericHint: '先查看构建链路前几条失败信息，确认是依赖、编译、测试还是插件执行中断。',
+    serviceBuildFailureDependencyTitle: '依赖解析失败',
+    serviceBuildFailureDependencyHint: '检查私服配置、网络访问和父 POM / 依赖版本是否可解析。',
+    serviceBuildFailureCompilationTitle: '编译阶段失败',
+    serviceBuildFailureCompilationHint: '优先修复缺失类、包不存在、JDK 版本不匹配等编译错误。',
+    serviceBuildFailureTestTitle: '测试阶段失败',
+    serviceBuildFailureTestHint: '如果只是本地联调，可确认是否需要跳过测试；否则先修复失败测试。',
+    serviceBuildFailurePluginTitle: '插件执行失败',
+    serviceBuildFailurePluginHint: '检查 Maven 插件配置、执行目标和插件版本是否正确。',
+    serviceBuildFailureJavaTitle: 'Java 环境异常',
+    serviceBuildFailureJavaHint: '检查本机 JDK、JAVA_HOME 和 Maven 使用的 Java 版本是否匹配项目要求。',
     serviceFailurePortConflictTitle: '端口被占用',
     serviceFailurePortConflictHint: '更换服务端口，或停止已占用该端口的进程后再启动。',
     serviceFailureBuildTitle: '构建阶段失败',
@@ -751,6 +779,20 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceFailureSummaryEmpty: 'No clear startup failure summary is available yet.',
     serviceFailureRootCauseTitle: 'Root Cause Candidate',
     serviceFailureRootCauseHint: 'Start from this diagnostic group and its context. It is usually closest to the direct cause.',
+    serviceBuildFailureSummaryTitle: 'Build Failure Summary',
+    serviceBuildFailureSummaryEmpty: 'No clear build failure summary is available yet.',
+    serviceBuildFailureGenericTitle: 'Build Pipeline Failed',
+    serviceBuildFailureGenericHint: 'Check the first failing build lines to confirm whether the issue is dependency, compilation, test, or plugin related.',
+    serviceBuildFailureDependencyTitle: 'Dependency Resolution Failed',
+    serviceBuildFailureDependencyHint: 'Check repository settings, network access, and whether parent POMs or dependency versions can be resolved.',
+    serviceBuildFailureCompilationTitle: 'Compilation Failed',
+    serviceBuildFailureCompilationHint: 'Fix missing classes, unknown packages, or JDK version mismatches first.',
+    serviceBuildFailureTestTitle: 'Test Phase Failed',
+    serviceBuildFailureTestHint: 'For local debugging, confirm whether tests can be skipped; otherwise fix the failing tests first.',
+    serviceBuildFailurePluginTitle: 'Plugin Execution Failed',
+    serviceBuildFailurePluginHint: 'Check Maven plugin configuration, execution goals, and plugin versions.',
+    serviceBuildFailureJavaTitle: 'Java Environment Problem',
+    serviceBuildFailureJavaHint: 'Verify the local JDK, JAVA_HOME, and the Java version used by Maven all match project requirements.',
     serviceFailurePortConflictTitle: 'Port Conflict',
     serviceFailurePortConflictHint: 'Use a different port or stop the process that is already listening on this port.',
     serviceFailureBuildTitle: 'Build Phase Failed',
