@@ -21,6 +21,7 @@ const tempProjectPath = path.join(tempRoot, '示例 项目')
 const { createServer } = await import('../apps/server/dist/index.js')
 const { checkServiceHealth, createBuildArgs } = await import('../apps/server/dist/service-runtime.js')
 const { resolveServiceGroupLaunchOrder } = await import('../apps/server/dist/service-group-runtime.js')
+const { extractMajorVersion, extractParsedVersion } = await import('../apps/server/dist/runtime-tools.js')
 const app = await createServer()
 const results = []
 
@@ -79,10 +80,12 @@ try {
     const moduleScan = findCheck(payload, 'module-scan')
     const startupClasses = findCheck(payload, 'startup-classes')
     const servicePackaging = findCheck(payload, 'service-packaging')
+    const mavenCompatibility = findCheck(payload, 'maven-compatibility')
 
     assert(moduleScan.status === 'pass', `模块扫描状态异常：${moduleScan.status}`)
     assert(startupClasses.status === 'pass', `启动类识别状态异常：${startupClasses.status}`)
     assert(servicePackaging.status === 'pass', `可启动模块状态异常：${servicePackaging.status}`)
+    assert(mavenCompatibility.detail.length > 0, 'Maven 兼容性预检详情为空')
 
     return `预检通过 ${payload.summary.passCount} 项，警告 ${payload.summary.warnCount} 项`
   })
@@ -189,6 +192,18 @@ try {
     assert(defaultMvndArgs.includes('-T1'), `mvnd 默认保护模式异常：${defaultMvndArgs.join(' ')}`)
 
     return `mvnd=${mvndArgs.join(' ')}，mvn=${mavenArgs.join(' ')}`
+  })
+
+  await check('maven-version-parser', 'Maven 版本兼容解析', async () => {
+    const maven4Output = 'Apache Maven 4.0.0-beta-4\nMaven home: /opt/maven'
+    const mvnd2Output = 'Apache Maven Daemon (mvnd) 2.0.0-rc-2 windows-amd64 native client'
+
+    assert(extractParsedVersion(maven4Output, 'mvn') === '4.0.0-beta-4', 'Maven 4 版本解析失败')
+    assert(extractMajorVersion(maven4Output, 'mvn') === 4, 'Maven 4 主版本解析失败')
+    assert(extractParsedVersion(mvnd2Output, 'mvnd') === '2.0.0-rc-2', 'mvnd 2 版本解析失败')
+    assert(extractMajorVersion(mvnd2Output, 'mvnd') === 2, 'mvnd 2 主版本解析失败')
+
+    return 'Maven 4 与 mvnd 2.x 版本解析通过'
   })
 
   await check('service-group-persistence', '服务组持久化配置', async () => {

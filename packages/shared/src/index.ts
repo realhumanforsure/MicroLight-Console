@@ -74,12 +74,18 @@ export type BuildToolPreference = 'auto' | BuildToolKind
 export type ServiceStatus = 'idle' | 'building' | 'running' | 'stopped' | 'failed'
 export type ServiceHealthStatus = 'unknown' | 'healthy' | 'unhealthy'
 export type DesktopCloseAction = 'quit' | 'hide'
+export type ToolSupportLevel = 'stable' | 'experimental' | 'unsupported' | 'unknown'
 
 export interface ToolAvailability {
   kind: 'java' | BuildToolKind
   available: boolean
   command: string
   version: string | null
+  parsedVersion: string | null
+  majorVersion: number | null
+  supportLevel: ToolSupportLevel
+  supportDetail: string | null
+  linkedMavenMajor: number | null
   detail: string | null
 }
 

@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import type {
   BuildToolKind,
   RuntimeDetectionResult,
+  ToolSupportLevel,
   ToolAvailability
 } from '@microlight/shared'
 
@@ -94,6 +95,11 @@ async function detectCommand(
       available: result.exitCode === 0,
       command,
       version: extractVersionLine(output),
+      parsedVersion: extractParsedVersion(output, kind),
+      majorVersion: extractMajorVersion(output, kind),
+      supportLevel: resolveSupportLevel(output, kind),
+      supportDetail: resolveSupportDetail(output, kind),
+      linkedMavenMajor: resolveLinkedMavenMajor(output, kind),
       detail: output || null
     }
   } catch (error) {
@@ -102,6 +108,11 @@ async function detectCommand(
       available: false,
       command,
       version: null,
+      parsedVersion: null,
+      majorVersion: null,
+      supportLevel: 'unknown',
+      supportDetail: null,
+      linkedMavenMajor: null,
       detail: error instanceof Error ? error.message : 'Command detection failed'
     }
   }
@@ -116,6 +127,11 @@ function unavailableTool(
     available: false,
     command,
     version: null,
+    parsedVersion: null,
+    majorVersion: null,
+    supportLevel: 'unknown',
+    supportDetail: null,
+    linkedMavenMajor: null,
     detail: null
   }
 }
@@ -147,6 +163,126 @@ function extractVersionLine(output: string): string | null {
     .find((line) => line.length > 0)
 
   return versionLine ?? null
+}
+
+export function extractParsedVersion(
+  output: string,
+  kind: ToolAvailability['kind']
+) {
+  const versionMatch =
+    kind === 'java'
+      ? output.match(/version\s+"([^"]+)"/i)
+      : kind === 'mvnd'
+        ? output.match(/(?:mvnd\)\s*|mvnd\s+)(\d+(?:\.\d+)*(?:[-+][\w.-]+)?)/i)
+        : output.match(/Apache Maven\s+(\d+(?:\.\d+)*(?:[-+][\w.-]+)?)/i)
+
+  return versionMatch?.[1] ?? null
+}
+
+export function extractMajorVersion(
+  output: string,
+  kind: ToolAvailability['kind']
+) {
+  const parsedVersion = extractParsedVersion(output, kind)
+  const majorValue = parsedVersion?.match(/^(\d+)/)?.[1]
+  return majorValue ? Number(majorValue) : null
+}
+
+function resolveLinkedMavenMajor(
+  output: string,
+  kind: ToolAvailability['kind']
+) {
+  if (kind !== 'mvnd') {
+    return null
+  }
+
+  const majorVersion = extractMajorVersion(output, kind)
+
+  if (majorVersion === 1) {
+    return 3
+  }
+
+  if (majorVersion === 2) {
+    return 4
+  }
+
+  return null
+}
+
+function resolveSupportLevel(
+  output: string,
+  kind: ToolAvailability['kind']
+): ToolSupportLevel {
+  const majorVersion = extractMajorVersion(output, kind)
+
+  if (majorVersion === null) {
+    return kind === 'java' ? 'stable' : 'unknown'
+  }
+
+  if (kind === 'java') {
+    return 'stable'
+  }
+
+  if (kind === 'mvnd') {
+    if (majorVersion === 1) {
+      return 'stable'
+    }
+
+    if (majorVersion === 2) {
+      return 'experimental'
+    }
+
+    return 'unsupported'
+  }
+
+  if (majorVersion === 3) {
+    return 'stable'
+  }
+
+  if (majorVersion === 4) {
+    return 'experimental'
+  }
+
+  return 'unsupported'
+}
+
+function resolveSupportDetail(
+  output: string,
+  kind: ToolAvailability['kind']
+) {
+  const parsedVersion = extractParsedVersion(output, kind)
+  const majorVersion = extractMajorVersion(output, kind)
+  const linkedMavenMajor = resolveLinkedMavenMajor(output, kind)
+
+  if (kind === 'java') {
+    return parsedVersion ? `Java ${parsedVersion}` : 'Java runtime detected.'
+  }
+
+  if (majorVersion === null) {
+    return null
+  }
+
+  if (kind === 'mvnd') {
+    if (majorVersion === 1) {
+      return `mvnd ${parsedVersion ?? majorVersion} targets Maven 3.x and is in the stable support line.`
+    }
+
+    if (majorVersion === 2) {
+      return `mvnd ${parsedVersion ?? majorVersion} targets Maven ${linkedMavenMajor ?? 4}.x and is treated as experimental support.`
+    }
+
+    return `mvnd ${parsedVersion ?? majorVersion} is outside the planned compatibility range.`
+  }
+
+  if (majorVersion === 3) {
+    return `Apache Maven ${parsedVersion ?? majorVersion} is in the stable support range.`
+  }
+
+  if (majorVersion === 4) {
+    return `Apache Maven ${parsedVersion ?? majorVersion} is treated as experimental support.`
+  }
+
+  return `Apache Maven ${parsedVersion ?? majorVersion} is outside the planned compatibility range.`
 }
 
 export function execCommand(command: string, args: string[], cwd: string) {

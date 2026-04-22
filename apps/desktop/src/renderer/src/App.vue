@@ -34,7 +34,9 @@ import {
   type ServiceGroupSaveRequest,
   type ServiceInstanceState,
   type ServiceLaunchRequest,
-  type ServiceStreamEvent
+  type ServiceStreamEvent,
+  type ToolAvailability,
+  type ToolSupportLevel
 } from '@microlight/shared'
 import { DEFAULT_LOCALE, messages, type Locale } from './locales'
 
@@ -554,6 +556,72 @@ function getReleaseArtifactLabel(id: string) {
   return id
 }
 
+function getEnvironmentToolLabel(tool: ToolAvailability) {
+  switch (tool.kind) {
+    case 'java':
+      return text.value.environmentJava
+    case 'mvnw':
+      return text.value.environmentMavenWrapper
+    case 'mvn':
+      return text.value.environmentMaven
+    default:
+      return text.value.environmentMvnd
+  }
+}
+
+function getToolSupportLabel(level: ToolSupportLevel) {
+  switch (level) {
+    case 'stable':
+      return text.value.environmentSupportStable
+    case 'experimental':
+      return text.value.environmentSupportExperimental
+    case 'unsupported':
+      return text.value.environmentSupportUnsupported
+    default:
+      return text.value.environmentSupportUnknown
+  }
+}
+
+function getToolSupportDetail(tool: ToolAvailability) {
+  if (!tool.available) {
+    return tool.detail ?? text.value.runtimePending
+  }
+
+  if (tool.kind === 'java') {
+    return text.value.environmentDetailJava
+  }
+
+  if (tool.kind === 'mvnd') {
+    if (tool.supportLevel === 'stable') {
+      return text.value.environmentDetailMvndStable
+    }
+
+    if (tool.supportLevel === 'experimental') {
+      return text.value.environmentDetailMvndExperimental
+    }
+
+    if (tool.supportLevel === 'unsupported') {
+      return text.value.environmentDetailMvndUnsupported
+    }
+
+    return tool.detail ?? text.value.runtimePending
+  }
+
+  if (tool.supportLevel === 'stable') {
+    return text.value.environmentDetailMavenStable
+  }
+
+  if (tool.supportLevel === 'experimental') {
+    return text.value.environmentDetailMavenExperimental
+  }
+
+  if (tool.supportLevel === 'unsupported') {
+    return text.value.environmentDetailMavenUnsupported
+  }
+
+  return tool.detail ?? text.value.runtimePending
+}
+
 function getServiceStatusLabel(status: ServiceInstanceState['status']) {
   switch (status) {
     case 'building':
@@ -1062,6 +1130,16 @@ const scannedServiceCount = computed(() => {
 })
 
 const lastServiceGroup = computed(() => serviceGroups.value[0] ?? null)
+const runtimeTools = computed(() =>
+  runtimeDetection.value
+    ? [
+        runtimeDetection.value.java,
+        runtimeDetection.value.mavenWrapper,
+        runtimeDetection.value.maven,
+        runtimeDetection.value.mvnd
+      ]
+    : []
+)
 
 const buildToolOptions = computed(() => [
   { value: 'auto', label: text.value.settingsAuto },
@@ -1638,23 +1716,31 @@ const closeActionOptions = computed(() => [
           </span>
         </div>
 
-        <div class="scan-meta">
-          <div class="pill ghost">
-            {{ text.environmentJava }}:
-            {{ runtimeDetection.java.available ? text.environmentAvailable : text.environmentUnavailable }}
-          </div>
-          <div class="pill ghost">
-            {{ text.environmentMavenWrapper }}:
-            {{ runtimeDetection.mavenWrapper.available ? text.environmentAvailable : text.environmentUnavailable }}
-          </div>
-          <div class="pill ghost">
-            {{ text.environmentMaven }}:
-            {{ runtimeDetection.maven.available ? text.environmentAvailable : text.environmentUnavailable }}
-          </div>
-          <div class="pill ghost">
-            {{ text.environmentMvnd }}:
-            {{ runtimeDetection.mvnd.available ? text.environmentAvailable : text.environmentUnavailable }}
-          </div>
+        <div class="preflight-list">
+          <article
+            v-for="tool in runtimeTools"
+            :key="tool.kind"
+            class="preflight-item"
+          >
+            <div class="project-panel__subheader">
+              <strong>{{ getEnvironmentToolLabel(tool) }}</strong>
+              <span
+                class="pill ghost"
+                :class="{
+                  'pill--danger': tool.available && tool.supportLevel === 'unsupported',
+                  'pill--warn': tool.available && tool.supportLevel === 'experimental'
+                }"
+              >
+                {{ tool.available ? text.environmentAvailable : text.environmentUnavailable }}
+              </span>
+            </div>
+            <p>{{ text.environmentVersion }}: {{ tool.parsedVersion ?? tool.version ?? text.runtimePending }}</p>
+            <p>{{ text.environmentSupport }}: {{ getToolSupportLabel(tool.supportLevel) }}</p>
+            <p v-if="tool.linkedMavenMajor !== null">
+              {{ text.environmentTargets }}: Maven {{ tool.linkedMavenMajor }}.x
+            </p>
+            <p>{{ getToolSupportDetail(tool) }}</p>
+          </article>
         </div>
       </div>
 

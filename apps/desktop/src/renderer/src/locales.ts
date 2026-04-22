@@ -97,6 +97,20 @@ interface LocaleMessages {
   environmentMavenWrapper: string
   environmentMaven: string
   environmentMvnd: string
+  environmentVersion: string
+  environmentSupport: string
+  environmentTargets: string
+  environmentSupportStable: string
+  environmentSupportExperimental: string
+  environmentSupportUnsupported: string
+  environmentSupportUnknown: string
+  environmentDetailJava: string
+  environmentDetailMavenStable: string
+  environmentDetailMavenExperimental: string
+  environmentDetailMavenUnsupported: string
+  environmentDetailMvndStable: string
+  environmentDetailMvndExperimental: string
+  environmentDetailMvndUnsupported: string
   serviceLaunch: string
   serviceRestart: string
   serviceStop: string
@@ -295,6 +309,20 @@ export const messages: Record<Locale, LocaleMessages> = {
     environmentMavenWrapper: 'Maven Wrapper',
     environmentMaven: 'System Maven',
     environmentMvnd: 'mvnd',
+    environmentVersion: '版本',
+    environmentSupport: '支持级别',
+    environmentTargets: '目标 Maven',
+    environmentSupportStable: '稳定支持',
+    environmentSupportExperimental: '实验性支持',
+    environmentSupportUnsupported: '超出规划范围',
+    environmentSupportUnknown: '待确认',
+    environmentDetailJava: '已识别本地 Java 运行环境。',
+    environmentDetailMavenStable: '当前 Maven 版本位于稳定支持范围内。',
+    environmentDetailMavenExperimental: '当前 Maven 版本按实验性支持处理，建议先做一次构建验证。',
+    environmentDetailMavenUnsupported: '当前 Maven 版本超出规划范围，建议切回 Maven 3.x 或 4.x 路径。',
+    environmentDetailMvndStable: '当前 mvnd 版本位于稳定支持范围内，目标是 Maven 3.x。',
+    environmentDetailMvndExperimental: '当前 mvnd 版本按实验性支持处理，目标是 Maven 4.x。',
+    environmentDetailMvndUnsupported: '当前 mvnd 版本超出规划范围，建议切回 1.x 或 2.x 版本线。',
     serviceLaunch: '构建并启动',
     serviceRestart: '重启服务',
     serviceStop: '停止服务',
@@ -489,6 +517,20 @@ export const messages: Record<Locale, LocaleMessages> = {
     environmentMavenWrapper: 'Maven Wrapper',
     environmentMaven: 'System Maven',
     environmentMvnd: 'mvnd',
+    environmentVersion: 'Version',
+    environmentSupport: 'Support',
+    environmentTargets: 'Target Maven',
+    environmentSupportStable: 'Stable',
+    environmentSupportExperimental: 'Experimental',
+    environmentSupportUnsupported: 'Out of Range',
+    environmentSupportUnknown: 'Unknown',
+    environmentDetailJava: 'A local Java runtime was detected.',
+    environmentDetailMavenStable: 'This Maven version is in the stable support range.',
+    environmentDetailMavenExperimental: 'This Maven version is treated as experimental support. Run a build check first.',
+    environmentDetailMavenUnsupported: 'This Maven version is outside the planned support range. Prefer a Maven 3.x or 4.x line.',
+    environmentDetailMvndStable: 'This mvnd version is in the stable support range and targets Maven 3.x.',
+    environmentDetailMvndExperimental: 'This mvnd version is treated as experimental support and targets Maven 4.x.',
+    environmentDetailMvndUnsupported: 'This mvnd version is outside the planned support range. Prefer mvnd 1.x or 2.x.',
     serviceLaunch: 'Build and Start',
     serviceRestart: 'Restart Service',
     serviceStop: 'Stop Service',

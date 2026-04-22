@@ -3,7 +3,8 @@ import path from 'node:path'
 import {
   type PreflightCheck,
   type PreflightCheckStatus,
-  type ProjectPreflightReport
+  type ProjectPreflightReport,
+  type ToolAvailability
 } from '@microlight/shared'
 import { persistenceService } from './persistence.js'
 import { scanProject } from './project-scanner.js'
@@ -41,6 +42,7 @@ export async function generateProjectPreflightReport(rootPath: string | null): P
         : '未检测到可用的 mvnw、mvn 或 mvnd。'
     )
   )
+  checks.push(createMavenCompatibilityCheck(runtimeDetection))
 
   const scanResult = await scanProject(normalizedRootPath)
   const startupClassCount = scanResult.modules.reduce(
@@ -179,6 +181,97 @@ function createToolCheck(
     status: available ? 'pass' : 'fail',
     detail: detail ?? (available ? '检查通过。' : '检查失败。')
   }
+}
+
+function createMavenCompatibilityCheck(runtimeDetection: Awaited<ReturnType<typeof detectRuntimeTools>>): PreflightCheck {
+  const availableTools = [
+    runtimeDetection.mavenWrapper,
+    runtimeDetection.maven,
+    runtimeDetection.mvnd
+  ].filter((tool) => tool.available)
+
+  if (availableTools.length === 0) {
+    return {
+      id: 'maven-compatibility',
+      label: 'Maven 版本兼容性',
+      status: 'fail',
+      detail: '当前没有可用的 mvnw、mvn 或 mvnd，无法验证 Maven 版本兼容性。'
+    }
+  }
+
+  const recommendedTool =
+    runtimeDetection.recommendedBuildTool === 'mvnw'
+      ? runtimeDetection.mavenWrapper
+      : runtimeDetection.recommendedBuildTool === 'mvnd'
+        ? runtimeDetection.mvnd
+        : runtimeDetection.recommendedBuildTool === 'mvn'
+          ? runtimeDetection.maven
+          : null
+
+  const detail = availableTools
+    .map((tool) => {
+      const versionLabel = tool.parsedVersion ?? tool.version ?? '未知版本'
+      const supportLabel =
+        tool.supportLevel === 'stable'
+          ? '稳定支持'
+          : tool.supportLevel === 'experimental'
+            ? '实验性支持'
+            : tool.supportLevel === 'unsupported'
+              ? '超出规划范围'
+              : '待确认'
+
+      return `${tool.kind}=${versionLabel}（${supportLabel}）`
+    })
+    .join('；')
+
+  if (!recommendedTool) {
+    return {
+      id: 'maven-compatibility',
+      label: 'Maven 版本兼容性',
+      status: 'warn',
+      detail
+    }
+  }
+
+  const status =
+    recommendedTool.supportLevel === 'stable'
+      ? 'pass'
+      : recommendedTool.supportLevel === 'experimental'
+        ? 'warn'
+        : 'fail'
+
+  return {
+    id: 'maven-compatibility',
+    label: 'Maven 版本兼容性',
+    status,
+    detail: `推荐构建器 ${recommendedTool.kind}：${describeRecommendedTool(recommendedTool)}`
+  }
+}
+
+function describeRecommendedTool(tool: ToolAvailability) {
+  const versionLabel = tool.parsedVersion ?? tool.version ?? '未知版本'
+
+  if (tool.kind === 'mvnd') {
+    if (tool.supportLevel === 'stable') {
+      return `mvnd ${versionLabel} 位于稳定支持范围，目标 Maven 3.x。`
+    }
+
+    if (tool.supportLevel === 'experimental') {
+      return `mvnd ${versionLabel} 按实验性支持处理，目标 Maven ${tool.linkedMavenMajor ?? 4}.x。`
+    }
+
+    return `mvnd ${versionLabel} 超出规划范围，建议切回 1.x 或 2.x 版本线。`
+  }
+
+  if (tool.supportLevel === 'stable') {
+    return `Apache Maven ${versionLabel} 位于稳定支持范围。`
+  }
+
+  if (tool.supportLevel === 'experimental') {
+    return `Apache Maven ${versionLabel} 按实验性支持处理，建议先做一次构建验证。`
+  }
+
+  return `Apache Maven ${versionLabel} 超出规划范围，建议切回 Maven 3.x 或 4.x 路径。`
 }
 
 function buildReport(rootPath: string | null, checks: PreflightCheck[]): ProjectPreflightReport {
