@@ -196,6 +196,30 @@ export interface AppSettingsUpdateRequest {
   closeAction: DesktopCloseAction
 }
 
+export interface ReleaseArtifactCheck {
+  id: string
+  label: string
+  path: string
+  available: boolean
+  detail: string
+}
+
+export interface ReleaseGuideStep {
+  id: string
+  title: string
+  detail: string
+}
+
+export interface ReleaseReadinessResponse {
+  generatedAt: string
+  platform: NodeJS.Platform
+  installerPath: string
+  unpackedExePath: string
+  artifacts: ReleaseArtifactCheck[]
+  installationSteps: ReleaseGuideStep[]
+  verificationSteps: ReleaseGuideStep[]
+}
+
 export interface ProjectPreference {
   rootPath: string
   lastSelectedServiceId: string | null

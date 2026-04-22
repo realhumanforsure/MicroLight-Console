@@ -1,5 +1,10 @@
 export type Locale = 'zh-CN' | 'en-US'
 
+interface ReleaseStepMessage {
+  title: string
+  detail: string
+}
+
 interface LocaleMessages {
   appTitle: string
   heroEyebrow: string
@@ -29,6 +34,21 @@ interface LocaleMessages {
   preflightFail: string
   preflightGeneratedAt: string
   preflightEmpty: string
+  releaseEyebrow: string
+  releaseTitle: string
+  releaseDescription: string
+  releaseRefresh: string
+  releaseChecking: string
+  releaseGeneratedAt: string
+  releaseInstallerArtifact: string
+  releaseUnpackedArtifact: string
+  releaseAvailable: string
+  releaseMissing: string
+  releaseInstallStepsTitle: string
+  releaseVerifyStepsTitle: string
+  releaseInstallSteps: ReleaseStepMessage[]
+  releaseVerifySteps: ReleaseStepMessage[]
+  releaseEmpty: string
   settingsTitle: string
   settingsGeneralTitle: string
   settingsGeneralDescription: string
@@ -150,6 +170,47 @@ export const messages: Record<Locale, LocaleMessages> = {
     preflightFail: '失败',
     preflightGeneratedAt: '最近预检时间',
     preflightEmpty: '当前还没有预检结果。',
+    releaseEyebrow: '发布收尾',
+    releaseTitle: 'Windows 安装与运行',
+    releaseDescription: '汇总当前 Windows 发布产物、安装动作和运行验证步骤，方便在分发前做最后确认。',
+    releaseRefresh: '刷新发布检查',
+    releaseChecking: '正在检查发布产物...',
+    releaseGeneratedAt: '最近检查时间',
+    releaseInstallerArtifact: 'Windows 安装器',
+    releaseUnpackedArtifact: '解压版可执行文件',
+    releaseAvailable: '已生成',
+    releaseMissing: '缺失',
+    releaseInstallStepsTitle: '安装步骤',
+    releaseVerifyStepsTitle: '运行验证',
+    releaseInstallSteps: [
+      {
+        title: '退出正在运行的应用',
+        detail: '安装新版本前，先关闭当前 MicroLight Console 窗口，避免文件占用。'
+      },
+      {
+        title: '运行 Windows 安装器',
+        detail: '打开生成的 exe 安装器，普通场景保持默认的当前用户安装目录即可。'
+      },
+      {
+        title: '从快捷方式启动',
+        detail: '安装完成后，通过桌面或开始菜单快捷方式启动 MicroLight Console。'
+      }
+    ],
+    releaseVerifySteps: [
+      {
+        title: '确认后端健康',
+        detail: '运行时信息应显示后端健康，并且打包版本中运行模式应为已打包。'
+      },
+      {
+        title: '打开 Maven 项目',
+        detail: '选择一个 Spring Boot 3.x 项目，确认模块和启动类可以被识别。'
+      },
+      {
+        title: '启动并停止服务',
+        detail: '构建启动一个服务，确认日志进入服务选项卡，然后正常停止服务。'
+      }
+    ],
+    releaseEmpty: '当前还没有发布检查结果。',
     settingsTitle: '设置',
     settingsGeneralTitle: '通用设置',
     settingsGeneralDescription: '配置默认语言、构建器和基础构建偏好。',
@@ -267,6 +328,47 @@ export const messages: Record<Locale, LocaleMessages> = {
     preflightFail: 'Fail',
     preflightGeneratedAt: 'Last Preflight Time',
     preflightEmpty: 'No preflight report is available yet.',
+    releaseEyebrow: 'Release Readiness',
+    releaseTitle: 'Windows Install and Run',
+    releaseDescription: 'Review the current Windows artifacts, installation actions, and runtime checks before distributing a build.',
+    releaseRefresh: 'Refresh Release Check',
+    releaseChecking: 'Checking release artifacts...',
+    releaseGeneratedAt: 'Last Check Time',
+    releaseInstallerArtifact: 'Windows Installer',
+    releaseUnpackedArtifact: 'Unpacked Executable',
+    releaseAvailable: 'Generated',
+    releaseMissing: 'Missing',
+    releaseInstallStepsTitle: 'Installation Steps',
+    releaseVerifyStepsTitle: 'Runtime Verification',
+    releaseInstallSteps: [
+      {
+        title: 'Exit running instances',
+        detail: 'Close any active MicroLight Console window before installing a new version.'
+      },
+      {
+        title: 'Run the Windows installer',
+        detail: 'Open the generated exe installer and keep the default per-user location unless a custom path is needed.'
+      },
+      {
+        title: 'Launch from shortcut',
+        detail: 'Start MicroLight Console from the desktop shortcut or the Start Menu shortcut.'
+      }
+    ],
+    releaseVerifySteps: [
+      {
+        title: 'Confirm backend health',
+        detail: 'The runtime panel should show a healthy backend, and packaged builds should show packaged mode.'
+      },
+      {
+        title: 'Open a Maven project',
+        detail: 'Select a Spring Boot 3.x project and confirm that modules and startup classes are detected.'
+      },
+      {
+        title: 'Start and stop a service',
+        detail: 'Build and launch one service, confirm logs stream into the service tab, then stop it cleanly.'
+      }
+    ],
+    releaseEmpty: 'No release readiness result is available yet.',
     settingsTitle: 'Settings',
     settingsGeneralTitle: 'General',
     settingsGeneralDescription: 'Configure the default language, build tool, and basic build preferences.',

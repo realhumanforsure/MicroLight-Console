@@ -13,6 +13,7 @@ import {
   type ProjectPreflightRequest,
   type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
+  type ReleaseReadinessResponse,
   type RuntimeDetectionRequest,
   type ServiceInstancesResponse,
   type ServiceLaunchRequest,
@@ -22,6 +23,7 @@ import {
 import { persistenceService } from './persistence.js'
 import { generateProjectPreflightReport } from './preflight.js'
 import { scanProject } from './project-scanner.js'
+import { getReleaseReadiness } from './release-readiness.js'
 import { detectRuntimeTools } from './runtime-tools.js'
 import { serviceRuntimeManager } from './service-runtime.js'
 
@@ -62,6 +64,10 @@ export async function createServer() {
       settings: persistenceService.getAppSettings(),
       recentProjects: persistenceService.getRecentProjects()
     }
+  })
+
+  app.get('/api/release/readiness', async (): Promise<ReleaseReadinessResponse> => {
+    return getReleaseReadiness()
   })
 
   app.put<{ Body: AppSettingsUpdateRequest }>('/api/settings', async (request, reply) => {

@@ -108,6 +108,18 @@ try {
 
     return `已找到安装器和 win-unpacked 可执行文件`
   })
+
+  await check('release-readiness', '发布安装说明', async () => {
+    const response = await app.inject('/api/release/readiness')
+    const payload = response.json()
+
+    assert(response.statusCode === 200, `期望状态码 200，实际 ${response.statusCode}`)
+    assert(payload.artifacts.every((artifact) => artifact.available), '存在未生成的发布产物')
+    assert(payload.installationSteps.length >= 3, '安装步骤不完整')
+    assert(payload.verificationSteps.length >= 3, '运行验证步骤不完整')
+
+    return `发布产物 ${payload.artifacts.length} 项，安装步骤 ${payload.installationSteps.length} 项`
+  })
 } finally {
   await rm(tempRoot, { recursive: true, force: true })
   await app.close()

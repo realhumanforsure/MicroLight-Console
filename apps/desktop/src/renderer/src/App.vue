@@ -20,6 +20,7 @@ import {
   type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
   type ProjectScanResult,
+  type ReleaseReadinessResponse,
   type RecentProject,
   type RuntimeDetectionRequest,
   type RuntimeDetectionResult,
@@ -42,6 +43,7 @@ interface ServiceLaunchConfig {
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
+const releaseReadiness = ref<ReleaseReadinessResponse | null>(null)
 const selectedProjectPath = ref('')
 const projectScan = ref<ProjectScanResult | null>(null)
 const runtimeDetection = ref<RuntimeDetectionResult | null>(null)
@@ -60,6 +62,7 @@ const recentProjects = ref<RecentProject[]>([])
 const selectedLogServiceId = ref('')
 const loading = ref(true)
 const preflightLoading = ref(false)
+const releaseLoading = ref(false)
 const scanning = ref(false)
 const detecting = ref(false)
 const errorMessage = ref('')
@@ -151,7 +154,7 @@ async function initializeApp() {
 
   try {
     runtimeInfo.value = await window.microlight.getRuntimeInfo()
-    await Promise.all([loadHealth(), loadAppState()])
+    await Promise.all([loadHealth(), loadAppState(), loadReleaseReadiness()])
     await refreshPreflight()
 
     if (appSettings.value.lastProjectPath) {
@@ -202,6 +205,24 @@ async function refreshPreflight() {
     preflightReport.value = null
   } finally {
     preflightLoading.value = false
+  }
+}
+
+async function loadReleaseReadiness() {
+  releaseLoading.value = true
+
+  try {
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/release/readiness`)
+
+    if (!response.ok) {
+      throw new Error(`Release readiness failed: ${response.status}`)
+    }
+
+    releaseReadiness.value = (await response.json()) as ReleaseReadinessResponse
+  } catch {
+    releaseReadiness.value = null
+  } finally {
+    releaseLoading.value = false
   }
 }
 
@@ -458,6 +479,18 @@ function getPreflightStatusLabel(status: PreflightCheckStatus) {
   }
 
   return text.value.preflightFail
+}
+
+function getReleaseArtifactLabel(id: string) {
+  if (id === 'windows-installer') {
+    return text.value.releaseInstallerArtifact
+  }
+
+  if (id === 'unpacked-executable') {
+    return text.value.releaseUnpackedArtifact
+  }
+
+  return id
 }
 
 function getServiceStatusLabel(status: ServiceInstanceState['status']) {
@@ -964,6 +997,85 @@ const closeActionOptions = computed(() => [
           <p class="muted">{{ text.preflightEmpty }}</p>
         </template>
       </article>
+    </section>
+
+    <section class="project-panel release-panel">
+      <div class="project-panel__header">
+        <div>
+          <p class="eyebrow">{{ text.releaseEyebrow }}</p>
+          <h2>{{ text.releaseTitle }}</h2>
+        </div>
+
+        <button
+          class="secondary-button"
+          type="button"
+          @click="loadReleaseReadiness"
+        >
+          {{ releaseLoading ? text.releaseChecking : text.releaseRefresh }}
+        </button>
+      </div>
+
+      <p class="muted">{{ text.releaseDescription }}</p>
+
+      <template v-if="releaseLoading">
+        <p class="muted">{{ text.releaseChecking }}</p>
+      </template>
+      <template v-else-if="releaseReadiness">
+        <div class="workspace-meta">
+          <span>{{ text.releaseGeneratedAt }}</span>
+          <strong>{{ releaseReadiness.generatedAt }}</strong>
+        </div>
+
+        <div class="release-grid">
+          <article
+            v-for="artifact in releaseReadiness.artifacts"
+            :key="artifact.id"
+            class="release-card"
+          >
+            <div class="project-panel__subheader">
+              <strong>{{ getReleaseArtifactLabel(artifact.id) }}</strong>
+              <span
+                class="pill"
+                :class="{ 'pill--danger': !artifact.available }"
+              >
+                {{ artifact.available ? text.releaseAvailable : text.releaseMissing }}
+              </span>
+            </div>
+            <p>{{ artifact.path }}</p>
+          </article>
+        </div>
+
+        <div class="release-guide-grid">
+          <article class="release-guide">
+            <h3>{{ text.releaseInstallStepsTitle }}</h3>
+            <ol>
+              <li
+                v-for="step in text.releaseInstallSteps"
+                :key="step.title"
+              >
+                <strong>{{ step.title }}</strong>
+                <span>{{ step.detail }}</span>
+              </li>
+            </ol>
+          </article>
+
+          <article class="release-guide">
+            <h3>{{ text.releaseVerifyStepsTitle }}</h3>
+            <ol>
+              <li
+                v-for="step in text.releaseVerifySteps"
+                :key="step.title"
+              >
+                <strong>{{ step.title }}</strong>
+                <span>{{ step.detail }}</span>
+              </li>
+            </ol>
+          </article>
+        </div>
+      </template>
+      <template v-else>
+        <p class="muted">{{ text.releaseEmpty }}</p>
+      </template>
     </section>
 
     <section class="project-panel">

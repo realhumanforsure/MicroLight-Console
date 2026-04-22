@@ -385,6 +385,57 @@ h1 {
   line-height: 1.6;
 }
 
+.release-panel {
+  margin-bottom: 20px;
+}
+
+.release-grid,
+.release-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.release-card,
+.release-guide {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(10, 19, 34, 0.92), rgba(14, 30, 47, 0.82));
+  border: 1px solid rgba(189, 210, 255, 0.1);
+}
+
+.release-card p {
+  margin: 0;
+  color: #9cb0ce;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.release-guide h3 {
+  margin: 0;
+}
+
+.release-guide ol {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.release-guide li {
+  color: #dce9ff;
+}
+
+.release-guide li span {
+  display: block;
+  margin-top: 4px;
+  color: #9cb0ce;
+  line-height: 1.6;
+}
+
 .module-list {
   display: grid;
   gap: 16px;
@@ -562,6 +613,11 @@ dd {
   }
 
   .workspace-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .release-grid,
+  .release-guide-grid {
     grid-template-columns: 1fr;
   }
 
