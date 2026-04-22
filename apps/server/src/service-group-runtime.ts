@@ -32,9 +32,29 @@ class ServiceGroupRuntimeManager {
 
     this.groups.set(group.groupId, group)
 
-    for (const [index, serviceRequest] of request.services.entries()) {
+    const orderedServices = resolveServiceGroupLaunchOrder(request.services)
+
+    for (const [index, serviceRequest] of orderedServices.entries()) {
       const serviceId = createServiceId(serviceRequest.artifactId, serviceRequest.mainClass)
       const item = findGroupItem(group, serviceId)
+      const failedDependency = item.dependsOnServiceIds
+        .map((dependencyServiceId) => findGroupItem(group, dependencyServiceId))
+        .find((dependency) => dependency.status !== 'completed')
+
+      if (failedDependency) {
+        item.status = 'failed'
+        item.message = `Dependency ${failedDependency.serviceId} did not start successfully`
+        touchGroup(group)
+
+        if (request.stopOnFailure) {
+          group.status = 'failed'
+          group.completedAt = new Date().toISOString()
+          touchGroup(group)
+          return group
+        }
+
+        continue
+      }
 
       item.status = 'running'
       item.message = 'Starting service'
@@ -47,7 +67,7 @@ class ServiceGroupRuntimeManager {
         item.instance = instance
         touchGroup(group)
 
-        if (index < request.services.length - 1) {
+        if (index < orderedServices.length - 1) {
           await delay(group.startupIntervalMs)
         }
       } catch (error) {
@@ -112,6 +132,7 @@ function createGroupItem(
     serviceId: createServiceId(serviceRequest.artifactId, serviceRequest.mainClass),
     artifactId: serviceRequest.artifactId,
     mainClass: serviceRequest.mainClass,
+    dependsOnServiceIds: serviceRequest.dependsOnServiceIds ?? [],
     status: 'pending',
     message: null,
     instance: null
@@ -126,6 +147,51 @@ function findGroupItem(group: ServiceGroupInstance, serviceId: string) {
   }
 
   return item
+}
+
+export function resolveServiceGroupLaunchOrder(services: ServiceGroupLaunchRequest['services']) {
+  const serviceIds = services.map((service) => createServiceId(service.artifactId, service.mainClass))
+  const serviceIdSet = new Set(serviceIds)
+  const serviceById = new Map(
+    services.map((service) => [createServiceId(service.artifactId, service.mainClass), service])
+  )
+  const pending = new Set(serviceIds)
+  const orderedServices: ServiceGroupLaunchRequest['services'] = []
+
+  for (const service of services) {
+    const serviceId = createServiceId(service.artifactId, service.mainClass)
+    const unknownDependency = (service.dependsOnServiceIds ?? []).find((dependencyId) => !serviceIdSet.has(dependencyId))
+
+    if (unknownDependency) {
+      throw new Error(`Service ${serviceId} depends on unknown service ${unknownDependency}.`)
+    }
+  }
+
+  while (pending.size > 0) {
+    const readyServiceId = serviceIds.find((serviceId) => {
+      if (!pending.has(serviceId)) {
+        return false
+      }
+
+      const service = serviceById.get(serviceId)
+      return service ? (service.dependsOnServiceIds ?? []).every((dependencyId) => !pending.has(dependencyId)) : false
+    })
+
+    if (!readyServiceId) {
+      throw new Error('Service group dependency graph contains a cycle.')
+    }
+
+    const readyService = serviceById.get(readyServiceId)
+
+    if (!readyService) {
+      throw new Error(`Service ${readyServiceId} was not found.`)
+    }
+
+    pending.delete(readyServiceId)
+    orderedServices.push(readyService)
+  }
+
+  return orderedServices
 }
 
 function touchGroup(group: ServiceGroupInstance) {

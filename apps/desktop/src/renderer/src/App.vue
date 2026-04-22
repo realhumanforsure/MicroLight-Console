@@ -45,6 +45,7 @@ interface ServiceLaunchConfig {
   programArgs: string
   springProfiles: string
   healthCheckPath: string
+  dependsOnServiceIds: string[]
 }
 
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
@@ -432,7 +433,8 @@ function createLaunchConfig(candidate: ServiceCandidate): ServiceLaunchConfig {
     jvmArgs: candidate.savedJvmArgs,
     programArgs: candidate.savedProgramArgs,
     springProfiles: candidate.savedSpringProfiles,
-    healthCheckPath: candidate.savedHealthCheckPath
+    healthCheckPath: candidate.savedHealthCheckPath,
+    dependsOnServiceIds: []
   }
 }
 
@@ -495,6 +497,10 @@ function normalizeHealthCheckPath(value: string) {
   }
 
   return trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`
+}
+
+function normalizeDependencyIds(serviceId: string, dependsOnServiceIds: string[]) {
+  return Array.from(new Set(dependsOnServiceIds.filter((dependencyId) => dependencyId !== serviceId)))
 }
 
 function getCloseActionLabel(closeAction: DesktopCloseAction, trayEnabled: boolean) {
@@ -599,6 +605,7 @@ function formatPort(port: number | null) {
 
 function createServiceLaunchRequest(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
   const launchConfig = getLaunchConfig(artifactId, candidate)
+  const serviceId = getServiceId(artifactId, candidate.mainClass)
 
   return {
     rootPath: selectedProjectPath.value,
@@ -611,8 +618,30 @@ function createServiceLaunchRequest(modulePath: string, artifactId: string, cand
     jvmArgs: launchConfig.jvmArgs.trim(),
     programArgs: launchConfig.programArgs.trim(),
     springProfiles: normalizeProfiles(launchConfig.springProfiles),
-    healthCheckPath: normalizeHealthCheckPath(launchConfig.healthCheckPath)
+    healthCheckPath: normalizeHealthCheckPath(launchConfig.healthCheckPath),
+    dependsOnServiceIds: normalizeDependencyIds(serviceId, launchConfig.dependsOnServiceIds)
   } satisfies ServiceLaunchRequest
+}
+
+function getDependencyOptions(artifactId: string, candidate: ServiceCandidate) {
+  if (!projectScan.value) {
+    return []
+  }
+
+  const currentServiceId = getServiceId(artifactId, candidate.mainClass)
+
+  return projectScan.value.modules.flatMap((module) =>
+    module.serviceCandidates
+      .map((serviceCandidate) => {
+        const serviceId = getServiceId(module.artifactId, serviceCandidate.mainClass)
+
+        return {
+          serviceId,
+          label: `${module.artifactId} · ${serviceCandidate.className}`
+        }
+      })
+      .filter((option) => option.serviceId !== currentServiceId)
+  )
 }
 
 function createScannedServiceLaunchRequests() {
@@ -1736,6 +1765,23 @@ const closeActionOptions = computed(() => [
                       type="text"
                       :placeholder="text.serviceConfigHealthPathPlaceholder"
                     />
+                  </label>
+
+                  <label class="settings-field candidate-config-field--wide">
+                    <span>{{ text.serviceConfigDependencies }}</span>
+                    <select
+                      v-model="getLaunchConfig(module.artifactId, candidate).dependsOnServiceIds"
+                      multiple
+                    >
+                      <option
+                        v-for="option in getDependencyOptions(module.artifactId, candidate)"
+                        :key="option.serviceId"
+                        :value="option.serviceId"
+                      >
+                        {{ option.label }}
+                      </option>
+                    </select>
+                    <small>{{ text.serviceConfigDependenciesHint }}</small>
                   </label>
 
                   <label class="settings-toggle">

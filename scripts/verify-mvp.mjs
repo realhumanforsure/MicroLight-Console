@@ -20,6 +20,7 @@ const tempProjectPath = path.join(tempRoot, '示例 项目')
 
 const { createServer } = await import('../apps/server/dist/index.js')
 const { checkServiceHealth } = await import('../apps/server/dist/service-runtime.js')
+const { resolveServiceGroupLaunchOrder } = await import('../apps/server/dist/service-group-runtime.js')
 const app = await createServer()
 const results = []
 
@@ -145,6 +146,30 @@ try {
     return `服务组列表可读，空服务组保护生效`
   })
 
+  await check('service-group-dependency-order', '服务组依赖启动顺序', async () => {
+    const orderedServices = resolveServiceGroupLaunchOrder([
+      createVerifyServiceRequest('gateway', 'com.example.GatewayApplication', ['catalog:com.example.CatalogApplication']),
+      createVerifyServiceRequest('catalog', 'com.example.CatalogApplication', ['config:com.example.ConfigApplication']),
+      createVerifyServiceRequest('config', 'com.example.ConfigApplication', [])
+    ])
+    const orderedIds = orderedServices.map((service) => `${service.artifactId}:${service.mainClass}`)
+
+    assert(orderedIds[0] === 'config:com.example.ConfigApplication', `依赖排序首项异常：${orderedIds[0]}`)
+    assert(orderedIds[2] === 'gateway:com.example.GatewayApplication', `依赖排序末项异常：${orderedIds[2]}`)
+
+    try {
+      resolveServiceGroupLaunchOrder([
+        createVerifyServiceRequest('a', 'com.example.AApplication', ['b:com.example.BApplication']),
+        createVerifyServiceRequest('b', 'com.example.BApplication', ['a:com.example.AApplication'])
+      ])
+      throw new Error('循环依赖未被识别')
+    } catch (error) {
+      assert(error instanceof Error && error.message.includes('cycle'), `循环依赖错误信息异常：${String(error)}`)
+    }
+
+    return `依赖排序 ${orderedIds.join(' -> ')}`
+  })
+
   await check('service-group-persistence', '服务组持久化配置', async () => {
     const scanPayload = await postJson('/api/projects/scan', {
       rootPath: sampleSingleModulePath
@@ -172,7 +197,8 @@ try {
             jvmArgs: service.savedJvmArgs,
             programArgs: service.savedProgramArgs,
             springProfiles: service.savedSpringProfiles,
-            healthCheckPath: '/ready'
+            healthCheckPath: '/ready',
+            dependsOnServiceIds: []
           }
         ]
       }
@@ -185,6 +211,7 @@ try {
       assert(savedGroup.startupIntervalMs === 1500, `启动间隔保存异常：${savedGroup.startupIntervalMs}`)
       assert(savedGroup.services.length === 1, `期望保存 1 个服务，实际 ${savedGroup.services.length}`)
       assert(savedGroup.services[0].healthCheckPath === '/ready', '服务组健康检查路径未正确保存')
+      assert(savedGroup.services[0].dependsOnServiceIds.length === 0, '服务组依赖关系未正确保存')
 
       const listResponse = await app.inject(`/api/service-groups/saved?rootPath=${encodeURIComponent(sampleSingleModulePath)}`)
       const listPayload = listResponse.json()
@@ -301,6 +328,23 @@ function findCheck(report, id) {
   assert(item, `预检结果缺少 ${id}`)
 
   return item
+}
+
+function createVerifyServiceRequest(artifactId, mainClass, dependsOnServiceIds) {
+  return {
+    rootPath: sampleSingleModulePath,
+    modulePath: sampleSingleModulePath,
+    artifactId,
+    mainClass,
+    runtimePort: null,
+    buildToolPreference: 'auto',
+    skipTests: true,
+    jvmArgs: '',
+    programArgs: '',
+    springProfiles: '',
+    healthCheckPath: '/actuator/health',
+    dependsOnServiceIds
+  }
 }
 
 function assert(condition, message) {

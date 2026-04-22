@@ -106,6 +106,8 @@ interface LocaleMessages {
   serviceConfigProfilesPlaceholder: string
   serviceConfigHealthPath: string
   serviceConfigHealthPathPlaceholder: string
+  serviceConfigDependencies: string
+  serviceConfigDependenciesHint: string
   serviceConfigJvmArgs: string
   serviceConfigJvmArgsPlaceholder: string
   serviceConfigProgramArgs: string
@@ -298,6 +300,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceConfigProfilesPlaceholder: '例如：dev,local',
     serviceConfigHealthPath: '健康检查路径',
     serviceConfigHealthPathPlaceholder: '默认：/actuator/health',
+    serviceConfigDependencies: '启动依赖',
+    serviceConfigDependenciesHint: '可多选，服务组会先启动依赖服务。按住 Ctrl 可选择多个服务。',
     serviceConfigJvmArgs: 'JVM 参数',
     serviceConfigJvmArgsPlaceholder: '例如：-Xms256m -Xmx512m',
     serviceConfigProgramArgs: '程序参数',
@@ -486,6 +490,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceConfigProfilesPlaceholder: 'For example: dev,local',
     serviceConfigHealthPath: 'Health Check Path',
     serviceConfigHealthPathPlaceholder: 'Default: /actuator/health',
+    serviceConfigDependencies: 'Startup Dependencies',
+    serviceConfigDependenciesHint: 'Select one or more services to start first. Hold Ctrl to select multiple services.',
     serviceConfigJvmArgs: 'JVM Arguments',
     serviceConfigJvmArgsPlaceholder: 'For example: -Xms256m -Xmx512m',
     serviceConfigProgramArgs: 'Program Arguments',

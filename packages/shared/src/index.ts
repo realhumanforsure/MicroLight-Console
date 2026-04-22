@@ -132,6 +132,7 @@ export interface ServiceLaunchRequest {
   programArgs: string
   springProfiles: string
   healthCheckPath: string
+  dependsOnServiceIds: string[]
 }
 
 export interface ServiceStopRequest {
@@ -200,6 +201,7 @@ export interface ServiceGroupItemState {
   serviceId: string
   artifactId: string
   mainClass: string
+  dependsOnServiceIds: string[]
   status: ServiceGroupItemStatus
   message: string | null
   instance: ServiceInstanceState | null

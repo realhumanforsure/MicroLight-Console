@@ -380,6 +380,7 @@ class PersistenceService {
             module_path,
             artifact_id,
             main_class,
+            depends_on_service_ids,
             runtime_port,
             build_tool_preference,
             skip_tests,
@@ -396,6 +397,7 @@ class PersistenceService {
             @modulePath,
             @artifactId,
             @mainClass,
+            @dependsOnServiceIds,
             @runtimePort,
             @buildToolPreference,
             @skipTests,
@@ -416,6 +418,7 @@ class PersistenceService {
           modulePath: service.modulePath,
           artifactId: service.artifactId,
           mainClass: service.mainClass,
+          dependsOnServiceIds: JSON.stringify(normalizeServiceDependencies(service.dependsOnServiceIds)),
           runtimePort: service.runtimePort,
           buildToolPreference: service.buildToolPreference,
           skipTests: service.skipTests ? 1 : 0,
@@ -493,6 +496,7 @@ class PersistenceService {
         module_path TEXT NOT NULL,
         artifact_id TEXT NOT NULL,
         main_class TEXT NOT NULL,
+        depends_on_service_ids TEXT NOT NULL DEFAULT '[]',
         runtime_port INTEGER,
         build_tool_preference TEXT NOT NULL,
         skip_tests INTEGER NOT NULL,
@@ -517,6 +521,7 @@ class PersistenceService {
     this.ensureColumn('service_group_services', 'jvm_args', "TEXT NOT NULL DEFAULT ''")
     this.ensureColumn('service_group_services', 'program_args', "TEXT NOT NULL DEFAULT ''")
     this.ensureColumn('service_group_services', 'spring_profiles', "TEXT NOT NULL DEFAULT ''")
+    this.ensureColumn('service_group_services', 'depends_on_service_ids', "TEXT NOT NULL DEFAULT '[]'")
     this.ensureColumn(
       'service_group_services',
       'health_check_path',
@@ -578,6 +583,7 @@ class PersistenceService {
             module_path AS modulePath,
             artifact_id AS artifactId,
             main_class AS mainClass,
+            depends_on_service_ids AS dependsOnServiceIds,
             runtime_port AS runtimePort,
             build_tool_preference AS buildToolPreference,
             skip_tests AS skipTests,
@@ -590,11 +596,17 @@ class PersistenceService {
           ORDER BY order_index ASC
         `
       )
-      .all(groupId) as Array<Omit<SavedServiceGroupService, 'skipTests'> & { skipTests: number }>
+      .all(groupId) as Array<
+        Omit<SavedServiceGroupService, 'skipTests' | 'dependsOnServiceIds'> & {
+          skipTests: number
+          dependsOnServiceIds: string | null
+        }
+      >
 
     return rows.map((row) => ({
       ...row,
       skipTests: row.skipTests === 1,
+      dependsOnServiceIds: parseServiceDependencies(row.dependsOnServiceIds),
       healthCheckPath: row.healthCheckPath ?? DEFAULT_HEALTH_CHECK_PATH
     }))
   }
@@ -606,6 +618,31 @@ function normalizeStartupInterval(value: number) {
   }
 
   return Math.min(Math.trunc(value), 600000)
+}
+
+function normalizeServiceDependencies(value: string[] | undefined) {
+  return Array.isArray(value)
+    ? Array.from(
+        new Set(
+          value
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0)
+        )
+      )
+    : []
+}
+
+function parseServiceDependencies(value: string | null) {
+  if (!value) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
 }
 
 export const persistenceService = new PersistenceService()
