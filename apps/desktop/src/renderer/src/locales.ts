@@ -134,6 +134,9 @@ interface LocaleMessages {
   serviceGroupLaunchAll: string
   serviceGroupStopAll: string
   serviceGroupSaveCurrent: string
+  serviceGroupStartupInterval: string
+  serviceGroupStartupIntervalHint: string
+  serviceGroupStartupIntervalInvalid: string
   serviceGroupSavedTitle: string
   serviceGroupLaunchSaved: string
   serviceGroupDeleteSaved: string
@@ -321,6 +324,9 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceGroupLaunchAll: '顺序启动服务组',
     serviceGroupStopAll: '停止服务组',
     serviceGroupSaveCurrent: '保存当前服务组',
+    serviceGroupStartupInterval: '服务启动间隔',
+    serviceGroupStartupIntervalHint: '服务组会按扫描顺序启动，每个服务启动成功后再等待指定秒数启动下一个服务。',
+    serviceGroupStartupIntervalInvalid: '服务启动间隔必须是 0 到 600 秒之间的数字。',
     serviceGroupSavedTitle: '已保存服务组',
     serviceGroupLaunchSaved: '启动已保存组',
     serviceGroupDeleteSaved: '删除',
@@ -504,6 +510,9 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceGroupLaunchAll: 'Start Service Group',
     serviceGroupStopAll: 'Stop Service Group',
     serviceGroupSaveCurrent: 'Save Current Group',
+    serviceGroupStartupInterval: 'Startup Interval',
+    serviceGroupStartupIntervalHint: 'Services start in scan order. After each service starts, the group waits this many seconds before the next one.',
+    serviceGroupStartupIntervalInvalid: 'Startup interval must be a number between 0 and 600 seconds.',
     serviceGroupSavedTitle: 'Saved Service Groups',
     serviceGroupLaunchSaved: 'Launch Saved Group',
     serviceGroupDeleteSaved: 'Delete',

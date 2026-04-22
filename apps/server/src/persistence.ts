@@ -278,6 +278,7 @@ class PersistenceService {
             root_path AS rootPath,
             group_name AS groupName,
             stop_on_failure AS stopOnFailure,
+            startup_interval_ms AS startupIntervalMs,
             created_at AS createdAt,
             updated_at AS updatedAt
           FROM service_groups
@@ -285,7 +286,9 @@ class PersistenceService {
           ORDER BY updated_at DESC
         `
       )
-      .all(rootPath) as Array<Omit<SavedServiceGroup, 'services' | 'stopOnFailure'> & { stopOnFailure: number }>
+      .all(rootPath) as Array<
+        Omit<SavedServiceGroup, 'services' | 'stopOnFailure'> & { stopOnFailure: number }
+      >
 
     return groups.map((group) => ({
       ...group,
@@ -322,6 +325,7 @@ class PersistenceService {
               root_path,
               group_name,
               stop_on_failure,
+              startup_interval_ms,
               created_at,
               updated_at
             )
@@ -330,6 +334,7 @@ class PersistenceService {
               @rootPath,
               @groupName,
               @stopOnFailure,
+              @startupIntervalMs,
               @createdAt,
               @updatedAt
             )
@@ -337,6 +342,7 @@ class PersistenceService {
             DO UPDATE SET
               group_name = excluded.group_name,
               stop_on_failure = excluded.stop_on_failure,
+              startup_interval_ms = excluded.startup_interval_ms,
               updated_at = excluded.updated_at
           `
         )
@@ -345,6 +351,7 @@ class PersistenceService {
           rootPath: request.rootPath,
           groupName,
           stopOnFailure: request.stopOnFailure ? 1 : 0,
+          startupIntervalMs: normalizeStartupInterval(request.startupIntervalMs),
           createdAt,
           updatedAt: now
         })
@@ -456,6 +463,7 @@ class PersistenceService {
         root_path TEXT NOT NULL,
         group_name TEXT NOT NULL,
         stop_on_failure INTEGER NOT NULL,
+        startup_interval_ms INTEGER NOT NULL DEFAULT 5000,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         UNIQUE(root_path, group_name)
@@ -483,6 +491,7 @@ class PersistenceService {
     this.ensureColumn('service_preferences', 'jvm_args', "TEXT NOT NULL DEFAULT ''")
     this.ensureColumn('service_preferences', 'program_args', "TEXT NOT NULL DEFAULT ''")
     this.ensureColumn('service_preferences', 'spring_profiles', "TEXT NOT NULL DEFAULT ''")
+    this.ensureColumn('service_groups', 'startup_interval_ms', 'INTEGER NOT NULL DEFAULT 5000')
   }
 
   private ensureColumn(tableName: string, columnName: string, definition: string) {
@@ -506,6 +515,7 @@ class PersistenceService {
             root_path AS rootPath,
             group_name AS groupName,
             stop_on_failure AS stopOnFailure,
+            startup_interval_ms AS startupIntervalMs,
             created_at AS createdAt,
             updated_at AS updatedAt
           FROM service_groups
@@ -556,6 +566,14 @@ class PersistenceService {
       skipTests: row.skipTests === 1
     }))
   }
+}
+
+function normalizeStartupInterval(value: number) {
+  if (!Number.isFinite(value) || value < 0) {
+    return 0
+  }
+
+  return Math.min(Math.trunc(value), 600000)
 }
 
 export const persistenceService = new PersistenceService()

@@ -292,6 +292,15 @@ h1 {
     rgba(10, 19, 34, 0.88);
 }
 
+.service-group-panel--compact {
+  grid-template-columns: minmax(180px, 280px) minmax(0, 1fr);
+  align-items: end;
+}
+
+.service-group-interval-field input {
+  width: 100%;
+}
+
 .service-group-list {
   display: grid;
   gap: 10px;
@@ -655,6 +664,10 @@ dd {
   }
 
   .service-group-item {
+    grid-template-columns: 1fr;
+  }
+
+  .service-group-panel--compact {
     grid-template-columns: 1fr;
   }
 

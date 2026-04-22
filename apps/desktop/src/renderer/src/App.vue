@@ -79,6 +79,7 @@ const settingsMessage = ref('')
 const serviceGroupMessage = ref('')
 const serviceActionState = ref<Record<string, boolean>>({})
 const serviceGroupActionRunning = ref(false)
+const serviceGroupStartupIntervalSeconds = ref('5')
 const text = computed(() => messages[locale.value])
 const logStreams = new Map<string, EventSource>()
 let refreshTimer: number | null = null
@@ -464,6 +465,17 @@ function normalizeRuntimePort(value: string) {
   return parsed
 }
 
+function normalizeServiceGroupStartupIntervalMs() {
+  const trimmedValue = serviceGroupStartupIntervalSeconds.value.trim()
+  const parsed = trimmedValue.length === 0 ? 0 : Number(trimmedValue)
+
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 600) {
+    throw new Error(text.value.serviceGroupStartupIntervalInvalid)
+  }
+
+  return Math.trunc(parsed * 1000)
+}
+
 function normalizeProfiles(value: string) {
   return value
     .split(',')
@@ -650,7 +662,8 @@ async function launchScannedServiceGroup() {
     const requestBody: ServiceGroupLaunchRequest = {
       groupName: projectScan.value.artifactId,
       services,
-      stopOnFailure: true
+      stopOnFailure: true,
+      startupIntervalMs: normalizeServiceGroupStartupIntervalMs()
     }
 
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/launch`, {
@@ -692,7 +705,8 @@ async function saveScannedServiceGroup() {
       groupName: projectScan.value.artifactId,
       rootPath: selectedProjectPath.value,
       services: createScannedServiceLaunchRequests(),
-      stopOnFailure: true
+      stopOnFailure: true,
+      startupIntervalMs: normalizeServiceGroupStartupIntervalMs()
     }
 
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/saved`, {
@@ -730,7 +744,8 @@ async function launchSavedServiceGroup(group: SavedServiceGroup) {
     const requestBody: ServiceGroupLaunchRequest = {
       groupName: group.groupName,
       services: group.services,
-      stopOnFailure: group.stopOnFailure
+      stopOnFailure: group.stopOnFailure,
+      startupIntervalMs: group.startupIntervalMs
     }
 
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/service-groups/launch`, {
@@ -1432,6 +1447,19 @@ const closeActionOptions = computed(() => [
         <strong>{{ selectedProjectPath || text.noProjectSelected }}</strong>
       </div>
 
+      <div class="service-group-panel service-group-panel--compact">
+        <label class="settings-field service-group-interval-field">
+          <span>{{ text.serviceGroupStartupInterval }}</span>
+          <input
+            v-model="serviceGroupStartupIntervalSeconds"
+            type="number"
+            min="0"
+            max="600"
+          />
+        </label>
+        <p class="muted">{{ text.serviceGroupStartupIntervalHint }}</p>
+      </div>
+
       <div
         v-if="savedServiceGroups.length > 0 || serviceGroupMessage"
         class="service-group-panel"
@@ -1460,7 +1488,10 @@ const closeActionOptions = computed(() => [
             class="service-group-item service-group-item--saved"
           >
             <strong>{{ group.groupName }}</strong>
-            <span>{{ text.serviceGroupServiceCount }}: {{ group.services.length }}</span>
+            <span>
+              {{ text.serviceGroupServiceCount }}: {{ group.services.length }} ·
+              {{ text.serviceGroupStartupInterval }}: {{ group.startupIntervalMs / 1000 }}s
+            </span>
             <div class="actions">
               <button
                 class="secondary-button"

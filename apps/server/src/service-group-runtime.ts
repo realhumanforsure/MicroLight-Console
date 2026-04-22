@@ -23,6 +23,7 @@ class ServiceGroupRuntimeManager {
       groupName: request.groupName.trim() || 'Service Group',
       status: 'running',
       stopOnFailure: request.stopOnFailure,
+      startupIntervalMs: normalizeStartupInterval(request.startupIntervalMs),
       startedAt: now,
       completedAt: null,
       lastUpdatedAt: now,
@@ -31,7 +32,7 @@ class ServiceGroupRuntimeManager {
 
     this.groups.set(group.groupId, group)
 
-    for (const serviceRequest of request.services) {
+    for (const [index, serviceRequest] of request.services.entries()) {
       const serviceId = createServiceId(serviceRequest.artifactId, serviceRequest.mainClass)
       const item = findGroupItem(group, serviceId)
 
@@ -45,6 +46,10 @@ class ServiceGroupRuntimeManager {
         item.message = 'Service started'
         item.instance = instance
         touchGroup(group)
+
+        if (index < request.services.length - 1) {
+          await delay(group.startupIntervalMs)
+        }
       } catch (error) {
         item.status = 'failed'
         item.message = error instanceof Error ? error.message : 'Service launch failed'
@@ -125,6 +130,20 @@ function findGroupItem(group: ServiceGroupInstance, serviceId: string) {
 
 function touchGroup(group: ServiceGroupInstance) {
   group.lastUpdatedAt = new Date().toISOString()
+}
+
+function normalizeStartupInterval(value: number) {
+  if (!Number.isFinite(value) || value < 0) {
+    return 0
+  }
+
+  return Math.min(Math.trunc(value), 600000)
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 }
 
 export const serviceGroupRuntimeManager = new ServiceGroupRuntimeManager()

@@ -174,6 +174,7 @@ export interface ServiceGroupLaunchRequest {
   groupName: string
   services: ServiceLaunchRequest[]
   stopOnFailure: boolean
+  startupIntervalMs: number
 }
 
 export interface ServiceGroupSaveRequest {
@@ -181,6 +182,7 @@ export interface ServiceGroupSaveRequest {
   rootPath: string
   services: ServiceLaunchRequest[]
   stopOnFailure: boolean
+  startupIntervalMs: number
 }
 
 export interface ServiceGroupDeleteRequest {
@@ -205,6 +207,7 @@ export interface ServiceGroupInstance {
   groupName: string
   status: ServiceGroupStatus
   stopOnFailure: boolean
+  startupIntervalMs: number
   startedAt: string
   completedAt: string | null
   lastUpdatedAt: string
@@ -221,6 +224,7 @@ export interface SavedServiceGroup {
   groupName: string
   rootPath: string
   stopOnFailure: boolean
+  startupIntervalMs: number
   createdAt: string
   updatedAt: string
   services: SavedServiceGroupService[]

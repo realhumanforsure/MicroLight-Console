@@ -132,7 +132,8 @@ try {
       payload: {
         groupName: 'empty',
         services: [],
-        stopOnFailure: true
+        stopOnFailure: true,
+        startupIntervalMs: 0
       }
     })
 
@@ -157,6 +158,7 @@ try {
         groupName,
         rootPath: sampleSingleModulePath,
         stopOnFailure: true,
+        startupIntervalMs: 1500,
         services: [
           {
             rootPath: sampleSingleModulePath,
@@ -178,6 +180,7 @@ try {
     try {
       assert(saveResponse.statusCode === 200, `保存服务组返回 ${saveResponse.statusCode}`)
       assert(savedGroup.groupName === groupName, '服务组名称未正确保存')
+      assert(savedGroup.startupIntervalMs === 1500, `启动间隔保存异常：${savedGroup.startupIntervalMs}`)
       assert(savedGroup.services.length === 1, `期望保存 1 个服务，实际 ${savedGroup.services.length}`)
 
       const listResponse = await app.inject(`/api/service-groups/saved?rootPath=${encodeURIComponent(sampleSingleModulePath)}`)
