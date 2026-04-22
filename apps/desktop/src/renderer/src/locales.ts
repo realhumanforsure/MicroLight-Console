@@ -99,6 +99,7 @@ interface LocaleMessages {
   settingsMaven: string
   settingsMvnd: string
   settingsNoRecentProjects: string
+  copySuccessToast: string
   healthTitle: string
   healthChecking: string
   healthHealthy: string
@@ -149,6 +150,7 @@ interface LocaleMessages {
   compatibilityMatrixNotDetected: string
   compatibilityMatrixNone: string
   serviceLaunch: string
+  serviceLaunchDirect: string
   serviceRestart: string
   serviceStop: string
   serviceConfigTitle: string
@@ -441,6 +443,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     settingsMaven: 'System Maven',
     settingsMvnd: 'mvnd',
     settingsNoRecentProjects: '还没有最近项目记录。',
+    copySuccessToast: '复制成功，内容已写入剪贴板。',
     healthTitle: '健康检查',
     healthChecking: '正在检查后端健康状态...',
     healthHealthy: '健康',
@@ -491,6 +494,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     compatibilityMatrixNotDetected: '未检测到',
     compatibilityMatrixNone: '当前机器未命中这条版本线。',
     serviceLaunch: '构建并启动',
+    serviceLaunchDirect: '直接启动',
     serviceRestart: '重启服务',
     serviceStop: '停止服务',
     serviceConfigTitle: '启动配置',
@@ -545,8 +549,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogActionEmpty: '当前没有可复制或导出的日志内容。',
     serviceLogCopiedSuffix: ' 已复制到剪贴板。',
     serviceLogExportedPrefix: '日志已导出到：',
-    serviceLogPauseScroll: '暂停跟随',
-    serviceLogResumeScroll: '恢复跟随',
+    serviceLogPauseScroll: '停止保持最新',
+    serviceLogResumeScroll: '保持最新',
     serviceLogPaused: '自动跟随已暂停',
     serviceLogVisibleLines: '当前展示',
     serviceLogDiagnosticCount: '异常命中',
@@ -779,6 +783,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     settingsMaven: 'System Maven',
     settingsMvnd: 'mvnd',
     settingsNoRecentProjects: 'No recent projects yet.',
+    copySuccessToast: 'Copied to clipboard.',
     healthTitle: 'Health Check',
     healthChecking: 'Checking backend health...',
     healthHealthy: 'Healthy',
@@ -829,6 +834,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     compatibilityMatrixNotDetected: 'Not Detected',
     compatibilityMatrixNone: 'This version line is not currently detected on this machine.',
     serviceLaunch: 'Build and Start',
+    serviceLaunchDirect: 'Direct Start',
     serviceRestart: 'Restart Service',
     serviceStop: 'Stop Service',
     serviceConfigTitle: 'Launch Configuration',
@@ -883,8 +889,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogActionEmpty: 'There are no logs available to copy or export.',
     serviceLogCopiedSuffix: ' copied to clipboard.',
     serviceLogExportedPrefix: 'Logs exported to: ',
-    serviceLogPauseScroll: 'Pause Follow',
-    serviceLogResumeScroll: 'Resume Follow',
+    serviceLogPauseScroll: 'Stop Following',
+    serviceLogResumeScroll: 'Follow Latest',
     serviceLogPaused: 'Auto-follow paused',
     serviceLogVisibleLines: 'Visible Lines',
     serviceLogDiagnosticCount: 'Diagnostic Hits',

@@ -35,6 +35,7 @@ import {
   type ServiceGroupInstance,
   type ServiceGroupLaunchRequest,
   type ServiceGroupSaveRequest,
+  type ServiceLaunchMode,
   type ServiceLogContentResponse,
   type ServiceLogHistoryEntry,
   type ServiceInstanceState,
@@ -170,9 +171,13 @@ const settingsWorkspaceRef = ref<HTMLElement | null>(null)
 const releaseWorkspaceRef = ref<HTMLElement | null>(null)
 const selectedLiveDiagnosticLineNumber = ref<number | null>(null)
 const selectedHistoryDiagnosticLineNumber = ref<number | null>(null)
+const toastMessage = ref('')
 const text = computed(() => messages[locale.value])
 const logStreams = new Map<string, EventSource>()
+const embeddedLogPanelRefs = new Map<string, HTMLElement>()
+const embeddedLogFollowState = ref<Record<string, boolean>>({})
 let refreshTimer: number | null = null
+let toastTimer: number | null = null
 
 onMounted(() => {
   void initializeApp()
@@ -188,11 +193,17 @@ onBeforeUnmount(() => {
     refreshTimer = null
   }
 
+  if (toastTimer !== null) {
+    window.clearTimeout(toastTimer)
+    toastTimer = null
+  }
+
   for (const stream of logStreams.values()) {
     stream.close()
   }
 
   logStreams.clear()
+  embeddedLogPanelRefs.clear()
 })
 
 watchEffect(() => {
@@ -222,6 +233,8 @@ watch(
         logStreams.delete(serviceId)
       }
     }
+
+    void syncEmbeddedLogScrolls()
   },
   { deep: true }
 )
@@ -665,6 +678,19 @@ function createLaunchConfig(candidate: ServiceCandidate): ServiceLaunchConfig {
     mavenThreads: candidate.savedMavenThreads,
     dependsOnServiceIds: []
   }
+}
+
+function showToast(message: string) {
+  toastMessage.value = message
+
+  if (toastTimer !== null) {
+    window.clearTimeout(toastTimer)
+  }
+
+  toastTimer = window.setTimeout(() => {
+    toastMessage.value = ''
+    toastTimer = null
+  }, 2200)
 }
 
 function getLaunchConfig(artifactId: string, candidate: ServiceCandidate) {
@@ -1510,11 +1536,74 @@ async function syncLiveLogScroll(force = false) {
   liveLogPanelRef.value.scrollTop = liveLogPanelRef.value.scrollHeight
 }
 
+function setEmbeddedLogPanelRef(serviceId: string) {
+  return (element: Element | { $el?: Element | null } | null) => {
+    const target =
+      element instanceof HTMLElement
+        ? element
+        : element && '$el' in element && element.$el instanceof HTMLElement
+          ? element.$el
+          : null
+
+    if (target) {
+      embeddedLogPanelRefs.set(serviceId, target)
+      void syncEmbeddedLogScroll(serviceId, true)
+      return
+    }
+
+    embeddedLogPanelRefs.delete(serviceId)
+  }
+}
+
+function isEmbeddedLogFollowEnabled(serviceId: string) {
+  return embeddedLogFollowState.value[serviceId] ?? true
+}
+
+async function syncEmbeddedLogScroll(serviceId: string, force = false) {
+  if (!force && !isEmbeddedLogFollowEnabled(serviceId)) {
+    return
+  }
+
+  await nextTick()
+
+  const panel = embeddedLogPanelRefs.get(serviceId)
+
+  if (!panel) {
+    return
+  }
+
+  panel.scrollTop = panel.scrollHeight
+}
+
+async function syncEmbeddedLogScrolls() {
+  await nextTick()
+
+  for (const [serviceId, panel] of embeddedLogPanelRefs.entries()) {
+    if (!isEmbeddedLogFollowEnabled(serviceId)) {
+      continue
+    }
+
+    panel.scrollTop = panel.scrollHeight
+  }
+}
+
 function toggleLiveLogFollow() {
   liveLogFollowEnabled.value = !liveLogFollowEnabled.value
 
   if (liveLogFollowEnabled.value) {
     void syncLiveLogScroll(true)
+  }
+}
+
+function toggleEmbeddedLogFollow(serviceId: string) {
+  const nextState = !isEmbeddedLogFollowEnabled(serviceId)
+  embeddedLogFollowState.value = {
+    ...embeddedLogFollowState.value,
+    [serviceId]: nextState
+  }
+
+  if (nextState) {
+    void syncEmbeddedLogScroll(serviceId, true)
   }
 }
 
@@ -1565,6 +1654,7 @@ async function copyLogs(title: string, lineViews: LogLineView[]) {
 
   await window.microlight.copyText(lineViews.map((line) => line.text).join('\n'))
   logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
+  showToast(text.value.copySuccessToast)
 }
 
 async function exportLogs(title: string, sourcePath: string | null, fileNameBase: string, lineViews: LogLineView[]) {
@@ -1725,6 +1815,7 @@ async function copyDiagnosticBundle(
 
     await window.microlight.copyText(buildDiagnosticBundleContent(title, sourcePath, groups, sourceLines))
     logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
+    showToast(text.value.copySuccessToast)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
   }
@@ -1782,6 +1873,7 @@ async function copyRootCauseAnalysis(title: string, analysis: RootCauseAnalysisV
 
     await window.microlight.copyText(content)
     logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
+    showToast(text.value.copySuccessToast)
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
   }
@@ -1870,7 +1962,12 @@ async function copyHistoryRootCauseAnalysis() {
   await copyRootCauseAnalysis(text.value.serviceRootCauseTitle, historyRootCauseAnalysis.value)
 }
 
-function createServiceLaunchRequest(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
+function createServiceLaunchRequest(
+  modulePath: string,
+  artifactId: string,
+  candidate: ServiceCandidate,
+  launchMode: ServiceLaunchMode = 'package'
+) {
   const launchConfig = getLaunchConfig(artifactId, candidate)
   const serviceId = getServiceId(artifactId, candidate.mainClass)
 
@@ -1879,6 +1976,7 @@ function createServiceLaunchRequest(modulePath: string, artifactId: string, cand
     modulePath,
     artifactId,
     mainClass: candidate.mainClass,
+    launchMode,
     runtimePort: normalizeRuntimePort(launchConfig.runtimePort),
     buildToolPreference: launchConfig.buildToolPreference,
     skipTests: launchConfig.skipTests,
@@ -1912,13 +2010,18 @@ function createScannedServiceLaunchRequests() {
   )
 }
 
-async function launchService(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
+async function launchService(
+  modulePath: string,
+  artifactId: string,
+  candidate: ServiceCandidate,
+  launchMode: ServiceLaunchMode = 'package'
+) {
   const serviceId = getServiceId(artifactId, candidate.mainClass)
   serviceActionState.value[serviceId] = true
   runtimeErrorMessage.value = ''
 
   try {
-    const requestBody = createServiceLaunchRequest(modulePath, artifactId, candidate)
+    const requestBody = createServiceLaunchRequest(modulePath, artifactId, candidate, launchMode)
 
     const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/services/launch`, {
       method: 'POST',
@@ -3518,6 +3621,17 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                   class="secondary-button"
                   type="button"
                   :disabled="!activeScannedService || serviceActionState[activeScannedService.serviceId]"
+                  @click="
+                    activeScannedService &&
+                    launchService(module.modulePath, module.artifactId, activeScannedService.candidate, 'direct')
+                  "
+                >
+                  {{ text.serviceLaunchDirect }}
+                </button>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  :disabled="!activeScannedService || serviceActionState[activeScannedService.serviceId]"
                   @click="activeScannedService && restartService(activeScannedService.serviceId)"
                 >
                   {{ text.serviceRestart }}
@@ -3676,9 +3790,24 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
                     </span>
                   </div>
 
-                  <div class="logs-panel">
-                    <span>{{ text.serviceLogs }}</span>
-                    <pre>{{
+                  <div class="logs-panel logs-panel--resizable">
+                    <div class="logs-panel__header">
+                      <span>{{ text.serviceLogs }}</span>
+                      <button
+                        class="secondary-button logs-panel__action"
+                        type="button"
+                        @click="toggleEmbeddedLogFollow(getServiceId(module.artifactId, candidate.mainClass))"
+                      >
+                        {{
+                          isEmbeddedLogFollowEnabled(getServiceId(module.artifactId, candidate.mainClass))
+                            ? text.serviceLogPauseScroll
+                            : text.serviceLogResumeScroll
+                        }}
+                      </button>
+                    </div>
+                    <pre
+                      :ref="setEmbeddedLogPanelRef(getServiceId(module.artifactId, candidate.mainClass))"
+                    >{{
                       serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].logLines.join('\n') ||
                       text.serviceNoLogs
                     }}</pre>
@@ -4495,4 +4624,13 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
       </section>
     </section>
   </main>
+
+  <div
+    v-if="toastMessage"
+    class="app-toast"
+    role="status"
+    aria-live="polite"
+  >
+    {{ toastMessage }}
+  </div>
 </template>

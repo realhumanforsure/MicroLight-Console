@@ -106,45 +106,62 @@ class ServiceRuntimeManager {
     state.status = 'building'
     state.lastUpdatedAt = new Date().toISOString()
     this.emitState(state)
-    this.appendLog(state, `[build] Starting build for ${request.artifactId}`)
+    this.appendLog(
+      state,
+      request.launchMode === 'direct'
+        ? `[runtime] Starting direct launch for ${request.artifactId}`
+        : `[build] Starting build for ${request.artifactId}`
+    )
 
     const buildCommand = await resolveBuildCommand(request.rootPath, request.buildToolPreference)
     state.buildTool = buildCommand.kind
     this.emitState(state)
 
-    const buildArgs = createBuildArgs(request, buildCommand.kind)
-    this.appendLog(state, `[build] Running command: ${buildCommand.command} ${buildArgs.join(' ')}`)
-    const buildResult = await runStreamingCommand(
-      buildCommand.command,
-      buildArgs,
-      request.rootPath,
-      (chunk, source) => {
-        const prefix = source === 'stderr' ? '[build][stderr]' : '[build]'
-        this.appendLog(state, `${prefix} ${chunk}`)
+    let serviceProcess: ChildProcessWithoutNullStreams
+
+    if (request.launchMode === 'direct') {
+      const directLaunchArgs = createDirectLaunchArgs(request, buildCommand.kind)
+      state.jarPath = null
+      this.appendLog(state, `[runtime] Launching command: ${buildCommand.command} ${directLaunchArgs.join(' ')}`)
+      serviceProcess = spawn(buildCommand.command, directLaunchArgs, {
+        cwd: request.rootPath,
+        env: process.env,
+        stdio: 'pipe'
+      })
+    } else {
+      const buildArgs = createBuildArgs(request, buildCommand.kind)
+      this.appendLog(state, `[build] Running command: ${buildCommand.command} ${buildArgs.join(' ')}`)
+      const buildResult = await runStreamingCommand(
+        buildCommand.command,
+        buildArgs,
+        request.rootPath,
+        (chunk, source) => {
+          const prefix = source === 'stderr' ? '[build][stderr]' : '[build]'
+          this.appendLog(state, `${prefix} ${chunk}`)
+        }
+      )
+
+      if (buildResult.exitCode !== 0) {
+        state.status = 'failed'
+        state.lastExitCode = buildResult.exitCode
+        state.lastUpdatedAt = new Date().toISOString()
+        this.emitState(state)
+        throw new Error(createBuildFailureMessage(buildResult, request))
       }
-    )
 
-    if (buildResult.exitCode !== 0) {
-      state.status = 'failed'
-      state.lastExitCode = buildResult.exitCode
-      state.lastUpdatedAt = new Date().toISOString()
-      this.emitState(state)
-      throw new Error(createBuildFailureMessage(buildResult, request))
+      const jarPath = await resolveRunnableJar(request.modulePath)
+      state.jarPath = jarPath
+
+      const launchArgs = createLaunchArgs(request, jarPath)
+
+      this.appendLog(state, `[runtime] Launching java ${launchArgs.join(' ')}`)
+
+      serviceProcess = spawn('java', launchArgs, {
+        cwd: request.modulePath,
+        env: process.env,
+        stdio: 'pipe'
+      })
     }
-
-    const jarPath = await resolveRunnableJar(request.modulePath)
-    state.jarPath = jarPath
-
-    const launchArgs = createLaunchArgs(request, jarPath)
-
-    this.appendLog(state, `[runtime] Launching java ${launchArgs.join(' ')}`)
-
-    const serviceProcess = spawn('java', launchArgs, {
-      cwd: request.modulePath,
-      env: process.env,
-      stdio: 'pipe'
-    })
-
     const managed = this.instances.get(serviceId)
 
     if (!managed) {
@@ -421,6 +438,42 @@ function createLaunchArgs(request: ServiceLaunchRequest, jarPath: string) {
   return [...jvmArgs, '-jar', jarPath, ...programArgs, ...runtimePortArgs, ...profileArgs]
 }
 
+function createDirectLaunchArgs(request: ServiceLaunchRequest, buildTool: BuildToolKind) {
+  const args: string[] = []
+  const relativeModulePath = normalizeModuleSelector(request.rootPath, request.modulePath)
+  const mavenThreads = normalizeMavenThreads(request.mavenThreads)
+
+  if (mavenThreads !== null && (buildTool === 'mvnd' || (request.mavenThreads ?? '').trim().length > 0)) {
+    args.push(`-T${mavenThreads}`)
+  }
+
+  if (relativeModulePath !== null) {
+    args.push('-pl', relativeModulePath, '-am')
+  }
+
+  if (request.skipTests) {
+    args.push('-DskipTests')
+  }
+
+  args.push('-Dspring-boot.run.fork=false')
+  args.push(`-Dspring-boot.run.mainClass=${request.mainClass}`)
+
+  const jvmArgs = parseCommandLineArguments(request.jvmArgs)
+
+  if (jvmArgs.length > 0) {
+    args.push(`-Dspring-boot.run.jvmArguments=${serializeCommandLineArguments(jvmArgs)}`)
+  }
+
+  const directProgramArgs = buildDirectProgramArgs(request)
+
+  if (directProgramArgs.length > 0) {
+    args.push(`-Dspring-boot.run.arguments=${serializeCommandLineArguments(directProgramArgs)}`)
+  }
+
+  args.push('spring-boot:run')
+  return args
+}
+
 function normalizeModuleSelector(rootPath: string, modulePath: string) {
   const normalizedRootPath = path.resolve(rootPath)
   const normalizedModulePath = path.resolve(modulePath)
@@ -594,6 +647,31 @@ function parseCommandLineArguments(input: string) {
   }
 
   return args
+}
+
+function buildDirectProgramArgs(request: ServiceLaunchRequest) {
+  const programArgs = parseCommandLineArguments(request.programArgs)
+  const runtimePortArgs =
+    request.runtimePort === null ? [] : [`--server.port=${String(request.runtimePort)}`]
+  const normalizedProfiles = normalizeProfiles(request.springProfiles)
+  const profileArgs =
+    normalizedProfiles.length > 0
+      ? [`--spring.profiles.active=${normalizedProfiles.join(',')}`]
+      : []
+
+  return [...programArgs, ...runtimePortArgs, ...profileArgs]
+}
+
+function serializeCommandLineArguments(args: string[]) {
+  return args
+    .map((arg) => {
+      if (!/[\s"]/u.test(arg)) {
+        return arg
+      }
+
+      return `"${arg.replace(/(["\\])/g, '\\$1')}"`
+    })
+    .join(' ')
 }
 
 function normalizeProfiles(input: string) {

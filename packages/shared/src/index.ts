@@ -71,6 +71,7 @@ export interface ProjectScanResult {
 
 export type BuildToolKind = 'mvnw' | 'mvn' | 'mvnd'
 export type BuildToolPreference = 'auto' | BuildToolKind
+export type ServiceLaunchMode = 'package' | 'direct'
 export type ServiceStatus = 'idle' | 'building' | 'running' | 'stopped' | 'failed'
 export type ServiceHealthStatus = 'unknown' | 'healthy' | 'unhealthy'
 export type DesktopCloseAction = 'quit' | 'hide'
@@ -160,6 +161,7 @@ export interface ServiceLaunchRequest {
   modulePath: string
   artifactId: string
   mainClass: string
+  launchMode?: ServiceLaunchMode
   runtimePort: number | null
   buildToolPreference: BuildToolPreference
   skipTests: boolean
