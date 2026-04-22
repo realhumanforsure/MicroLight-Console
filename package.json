@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "npm run build -w @microlight/shared && npm run dev -w @microlight/desktop",
     "build": "npm run build -w @microlight/shared && npm run build -w @microlight/server && npm run build -w @microlight/desktop",
-    "dist:win": "npm run build && npm run package:win -w @microlight/desktop"
+    "dist:win": "npm run build && npm run package:win -w @microlight/desktop",
+    "verify:mvp": "npm run dist:win && node scripts/verify-mvp.mjs"
   },
   "engines": {
     "node": ">=22.0.0",

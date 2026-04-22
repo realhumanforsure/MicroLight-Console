@@ -27,18 +27,21 @@ import { serviceRuntimeManager } from './service-runtime.js'
 
 export async function createServer() {
   const app = Fastify({
-    logger: {
-      transport:
-        process.env.NODE_ENV === 'production'
-          ? undefined
-          : {
-              target: 'pino-pretty',
-              options: {
-                colorize: true,
-                translateTime: 'HH:MM:ss'
-              }
-            }
-    }
+    logger:
+      process.env.MICROLIGHT_SERVER_LOGGER === 'silent'
+        ? false
+        : {
+            transport:
+              process.env.NODE_ENV === 'production'
+                ? undefined
+                : {
+                    target: 'pino-pretty',
+                    options: {
+                      colorize: true,
+                      translateTime: 'HH:MM:ss'
+                    }
+                  }
+          }
   })
 
   await app.register(cors, {
