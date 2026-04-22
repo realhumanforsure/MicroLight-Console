@@ -2611,48 +2611,6 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
 <template>
   <main class="shell">
-    <section
-      v-show="activeWorkspaceTab === 'settings'"
-      class="hero"
-    >
-      <div class="hero-copy">
-        <p class="eyebrow">{{ text.heroEyebrow }}</p>
-        <h1>{{ text.heroTitle }}</h1>
-        <p class="lede">
-          {{ text.heroDescription }}
-        </p>
-      </div>
-
-      <div class="hero-actions">
-        <div class="language-switch">
-          <button
-            class="secondary-button"
-            type="button"
-            :disabled="locale === 'zh-CN'"
-            @click="setLocale('zh-CN')"
-          >
-            {{ text.switchToChinese }}
-          </button>
-          <button
-            class="secondary-button"
-            type="button"
-            :disabled="locale === 'en-US'"
-            @click="setLocale('en-US')"
-          >
-            {{ text.switchToEnglish }}
-          </button>
-        </div>
-
-        <button
-          class="refresh-button"
-          type="button"
-          @click="initializeApp"
-        >
-          {{ text.refreshHealth }}
-        </button>
-      </div>
-    </section>
-
     <section class="app-workbench">
       <aside class="workbench-sidebar">
         <div class="workbench-sidebar__header">
@@ -2692,7 +2650,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
           </div>
         </div>
 
-        <div class="workbench-service-list">
+        <div class="workbench-service-list workspace-scroll-hidden">
           <div class="workbench-service-list__header">
             <strong>{{ text.workspaceSidebarServices }}</strong>
             <span>{{ scannedServiceViews.length }}</span>
@@ -2742,176 +2700,219 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'settings'"
-      class="panel-grid"
+      class="project-panel workspace-view workspace-scroll-hidden settings-panel"
     >
-      <article class="panel">
-        <h2>{{ text.runtimeTitle }}</h2>
-        <dl>
-          <div class="row">
-            <dt>{{ text.runtimeApp }}</dt>
-            <dd>{{ runtimeInfo?.appName ?? APP_NAME }}</dd>
-          </div>
-          <div class="row">
-            <dt>{{ text.runtimeVersion }}</dt>
-            <dd>{{ runtimeInfo?.appVersion ?? health?.version ?? text.runtimePending }}</dd>
-          </div>
-          <div class="row">
-            <dt>{{ text.runtimeBackendUrl }}</dt>
-            <dd>{{ runtimeInfo?.serverUrl ?? DEFAULT_SERVER_URL }}</dd>
-          </div>
-          <div class="row">
-            <dt>{{ text.runtimeBackendPid }}</dt>
-            <dd>{{ runtimeInfo?.backendPid ?? text.runtimePending }}</dd>
-          </div>
-          <div class="row">
-            <dt>{{ text.runtimeMode }}</dt>
-            <dd>{{
-              runtimeInfo
-                ? runtimeInfo.isPackaged
-                  ? text.runtimeModePackaged
-                  : text.runtimeModeDev
-                : text.runtimePending
-            }}</dd>
-          </div>
-          <div class="row">
-            <dt>{{ text.runtimePlatform }}</dt>
-            <dd>{{ runtimeInfo?.platform ?? text.runtimePending }}</dd>
-          </div>
-          <div class="row">
-            <dt>{{ text.runtimeExePath }}</dt>
-            <dd>{{ runtimeInfo?.exePath ?? text.runtimePending }}</dd>
-          </div>
-          <div class="row">
-            <dt>{{ text.runtimeUserDataPath }}</dt>
-            <dd>{{ runtimeInfo?.userDataPath ?? text.runtimePending }}</dd>
-          </div>
-        </dl>
-      </article>
-
-      <article class="panel">
-        <h2>{{ text.settingsTitle }}</h2>
-        <div class="settings-stack">
-          <section class="settings-section">
-            <div class="settings-section__header">
-              <h3>{{ text.settingsGeneralTitle }}</h3>
-              <p>{{ text.settingsGeneralDescription }}</p>
+      <div class="settings-shell">
+        <section class="document-section document-section--accent">
+          <div class="settings-intro">
+            <div class="settings-intro__copy">
+              <p class="eyebrow">{{ text.heroEyebrow }}</p>
+              <h2>{{ text.settingsTitle }}</h2>
+              <p class="muted">{{ text.heroDescription }}</p>
             </div>
 
-            <div class="settings-grid">
-              <label class="settings-field">
-                <span>{{ text.settingsLocale }}</span>
-                <select
-                  v-model="appSettings.locale"
-                  @change="setLocale(appSettings.locale)"
+            <div class="settings-intro__actions">
+              <div class="language-switch">
+                <button
+                  class="secondary-button"
+                  type="button"
+                  :disabled="locale === 'zh-CN'"
+                  @click="setLocale('zh-CN')"
                 >
-                  <option value="zh-CN">{{ text.switchToChinese }}</option>
-                  <option value="en-US">{{ text.switchToEnglish }}</option>
-                </select>
-              </label>
+                  {{ text.switchToChinese }}
+                </button>
+                <button
+                  class="secondary-button"
+                  type="button"
+                  :disabled="locale === 'en-US'"
+                  @click="setLocale('en-US')"
+                >
+                  {{ text.switchToEnglish }}
+                </button>
+              </div>
 
-              <label class="settings-field">
-                <span>{{ text.settingsDefaultBuildTool }}</span>
-                <select v-model="appSettings.defaultBuildToolPreference">
-                  <option
-                    v-for="option in buildToolOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-
-              <label class="settings-toggle">
-                <input
-                  v-model="appSettings.defaultSkipTests"
-                  type="checkbox"
-                />
-                <span>{{ text.settingsSkipTests }}</span>
-              </label>
+              <button
+                class="secondary-button"
+                type="button"
+                @click="initializeApp"
+              >
+                {{ text.refreshHealth }}
+              </button>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section class="settings-section">
-            <div class="settings-section__header">
-              <h3>{{ text.settingsDesktopTitle }}</h3>
-              <p>{{ text.settingsDesktopDescription }}</p>
+        <section class="document-section">
+          <div class="document-section__header">
+            <h3>{{ text.runtimeTitle }}</h3>
+          </div>
+
+          <dl>
+            <div class="row">
+              <dt>{{ text.runtimeApp }}</dt>
+              <dd>{{ runtimeInfo?.appName ?? APP_NAME }}</dd>
             </div>
-
-            <div class="settings-grid">
-              <label class="settings-toggle">
-                <input
-                  v-model="appSettings.trayEnabled"
-                  type="checkbox"
-                />
-                <span>{{ text.settingsTrayEnabled }}</span>
-              </label>
-
-              <label class="settings-field">
-                <span>{{ text.settingsCloseAction }}</span>
-                <select v-model="appSettings.closeAction">
-                  <option
-                    v-for="option in closeActionOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
+            <div class="row">
+              <dt>{{ text.runtimeVersion }}</dt>
+              <dd>{{ runtimeInfo?.appVersion ?? health?.version ?? text.runtimePending }}</dd>
             </div>
+            <div class="row">
+              <dt>{{ text.runtimeBackendUrl }}</dt>
+              <dd>{{ runtimeInfo?.serverUrl ?? DEFAULT_SERVER_URL }}</dd>
+            </div>
+            <div class="row">
+              <dt>{{ text.runtimeBackendPid }}</dt>
+              <dd>{{ runtimeInfo?.backendPid ?? text.runtimePending }}</dd>
+            </div>
+            <div class="row">
+              <dt>{{ text.runtimeMode }}</dt>
+              <dd>{{
+                runtimeInfo
+                  ? runtimeInfo.isPackaged
+                    ? text.runtimeModePackaged
+                    : text.runtimeModeDev
+                  : text.runtimePending
+              }}</dd>
+            </div>
+            <div class="row">
+              <dt>{{ text.runtimePlatform }}</dt>
+              <dd>{{ runtimeInfo?.platform ?? text.runtimePending }}</dd>
+            </div>
+            <div class="row">
+              <dt>{{ text.runtimeExePath }}</dt>
+              <dd>{{ runtimeInfo?.exePath ?? text.runtimePending }}</dd>
+            </div>
+            <div class="row">
+              <dt>{{ text.runtimeUserDataPath }}</dt>
+              <dd>{{ runtimeInfo?.userDataPath ?? text.runtimePending }}</dd>
+            </div>
+          </dl>
+        </section>
 
-            <p class="muted">
-              {{ text.settingsCloseActionSummary }} {{ getCloseActionLabel(appSettings.closeAction, appSettings.trayEnabled) }}
-            </p>
-          </section>
+        <section class="document-section">
+          <div class="document-section__header">
+            <h3>{{ text.settingsGeneralTitle }}</h3>
+            <p>{{ text.settingsGeneralDescription }}</p>
+          </div>
 
-          <button
-            class="refresh-button"
-            type="button"
-            @click="saveSettings"
-          >
-            {{ text.settingsSave }}
-          </button>
-        </div>
+          <div class="settings-grid">
+            <label class="settings-field">
+              <span>{{ text.settingsLocale }}</span>
+              <select
+                v-model="appSettings.locale"
+                @change="setLocale(appSettings.locale)"
+              >
+                <option value="zh-CN">{{ text.switchToChinese }}</option>
+                <option value="en-US">{{ text.switchToEnglish }}</option>
+              </select>
+            </label>
 
-        <p
-          v-if="settingsMessage"
-          class="muted"
-        >
-          {{ settingsMessage }}
-        </p>
+            <label class="settings-field">
+              <span>{{ text.settingsDefaultBuildTool }}</span>
+              <select v-model="appSettings.defaultBuildToolPreference">
+                <option
+                  v-for="option in buildToolOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
 
-        <div class="recent-projects">
+            <label class="settings-toggle">
+              <input
+                v-model="appSettings.defaultSkipTests"
+                type="checkbox"
+              />
+              <span>{{ text.settingsSkipTests }}</span>
+            </label>
+          </div>
+        </section>
+
+        <section class="document-section">
+          <div class="document-section__header">
+            <h3>{{ text.settingsDesktopTitle }}</h3>
+            <p>{{ text.settingsDesktopDescription }}</p>
+          </div>
+
+          <div class="settings-grid">
+            <label class="settings-toggle">
+              <input
+                v-model="appSettings.trayEnabled"
+                type="checkbox"
+              />
+              <span>{{ text.settingsTrayEnabled }}</span>
+            </label>
+
+            <label class="settings-field">
+              <span>{{ text.settingsCloseAction }}</span>
+              <select v-model="appSettings.closeAction">
+                <option
+                  v-for="option in closeActionOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <p class="muted">
+            {{ text.settingsCloseActionSummary }} {{ getCloseActionLabel(appSettings.closeAction, appSettings.trayEnabled) }}
+          </p>
+        </section>
+
+        <section class="document-section">
           <div class="project-panel__subheader">
             <h3>{{ text.settingsRecentProjects }}</h3>
+
+            <button
+              class="refresh-button"
+              type="button"
+              @click="saveSettings"
+            >
+              {{ text.settingsSave }}
+            </button>
           </div>
 
-          <template v-if="recentProjects.length === 0">
-            <p class="muted">{{ text.settingsNoRecentProjects }}</p>
-          </template>
-          <template v-else>
-            <button
-              v-for="project in recentProjects"
-              :key="project.rootPath"
-              class="recent-project-button"
-              type="button"
-              @click="restoreRecentProject(project.rootPath)"
-            >
-              <strong>{{ project.displayName }}</strong>
-              <span>{{ project.rootPath }}</span>
-            </button>
-          </template>
-        </div>
-      </article>
+          <p
+            v-if="settingsMessage"
+            class="muted"
+          >
+            {{ settingsMessage }}
+          </p>
+
+          <div class="recent-projects">
+            <template v-if="recentProjects.length === 0">
+              <p class="muted">{{ text.settingsNoRecentProjects }}</p>
+            </template>
+            <template v-else>
+              <button
+                v-for="project in recentProjects"
+                :key="project.rootPath"
+                class="recent-project-button"
+                type="button"
+                @click="restoreRecentProject(project.rootPath)"
+              >
+                <strong>{{ project.displayName }}</strong>
+                <span>{{ project.rootPath }}</span>
+              </button>
+            </template>
+          </div>
+        </section>
+      </div>
     </section>
 
     <section
       v-show="activeWorkspaceTab === 'checks'"
-      class="panel-grid"
+      class="project-panel workspace-view workspace-document workspace-scroll-hidden checks-panel"
     >
-      <article class="panel">
-        <h2>{{ text.healthTitle }}</h2>
+      <article class="document-section">
+        <div class="document-section__header">
+          <h2>{{ text.healthTitle }}</h2>
+        </div>
         <template v-if="loading">
           <p class="muted">{{ text.healthChecking }}</p>
         </template>
@@ -2936,7 +2937,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
         </template>
       </article>
 
-      <article class="panel">
+      <article class="document-section">
         <div class="project-panel__subheader">
           <h2>{{ text.preflightTitle }}</h2>
           <button
@@ -2996,7 +2997,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
         </template>
       </article>
 
-      <article class="panel trial-panel">
+      <article class="document-section document-section--accent">
         <div class="project-panel__subheader">
           <h2>{{ text.trialTitle }}</h2>
           <button
@@ -3063,7 +3064,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
       <article
         v-if="runtimeDetection"
-        class="panel"
+        class="document-section"
       >
         <div class="project-panel__subheader">
           <h2>{{ text.environmentTitle }}</h2>
@@ -3116,7 +3117,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'release'"
-      class="project-panel release-panel"
+      class="project-panel workspace-view workspace-scroll-hidden release-panel"
     >
       <div class="project-panel__header">
         <div>
@@ -3198,7 +3199,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'services'"
-      class="project-panel project-panel--workspace"
+      class="project-panel project-panel--workspace workspace-view workspace-scroll-hidden"
     >
       <div class="service-toolbar">
         <div class="service-toolbar__title">
@@ -3652,7 +3653,7 @@ const workspaceTabs = computed<Array<{ value: WorkspaceTab; label: string }>>(()
 
     <section
       v-show="activeWorkspaceTab === 'logs'"
-      class="project-panel"
+      class="project-panel workspace-view workspace-scroll-hidden"
     >
       <div class="project-panel__subheader">
         <h2>{{ text.logsWorkspaceTitle }}</h2>
