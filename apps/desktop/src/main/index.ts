@@ -140,6 +140,15 @@ async function createWindow() {
     mainWindow?.show()
   })
 
+  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    const levelLabel = ['debug', 'info', 'warn', 'error'][level] ?? String(level)
+    console.log(`[renderer:${levelLabel}] ${sourceId}:${line} ${message}`)
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[renderer:load-failed] code=${errorCode} url=${validatedURL} description=${errorDescription}`)
+  })
+
   mainWindow.on('close', (event) => {
     if (isQuitting) {
       return
