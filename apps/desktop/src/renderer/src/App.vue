@@ -64,6 +64,13 @@ interface LogLineView {
   isDiagnostic: boolean
 }
 
+interface LogContextView {
+  centerLine: LogLineView
+  contextLines: LogLineView[]
+  startLineNumber: number
+  endLineNumber: number
+}
+
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
@@ -832,6 +839,32 @@ function buildLogLineViews(lines: string[], keyword: string, level: LogLevelFilt
   })
 }
 
+function buildContextLineViews(lines: string[], centerLineNumber: number, radius = 3): LogContextView | null {
+  if (centerLineNumber <= 0 || centerLineNumber > lines.length) {
+    return null
+  }
+
+  const startIndex = Math.max(0, centerLineNumber - radius - 1)
+  const endIndex = Math.min(lines.length - 1, centerLineNumber + radius - 1)
+  const contextLines = lines.slice(startIndex, endIndex + 1).map((line, index) => {
+    const lineNumber = startIndex + index + 1
+
+    return {
+      lineNumber,
+      text: line,
+      level: getRenderedLogLevel(line),
+      isDiagnostic: isDiagnosticLogLine(line)
+    } satisfies LogLineView
+  })
+
+  return {
+    centerLine: contextLines.find((line) => line.lineNumber === centerLineNumber) ?? contextLines[0],
+    contextLines,
+    startLineNumber: startIndex + 1,
+    endLineNumber: endIndex + 1
+  }
+}
+
 async function scrollToLogLine(panel: HTMLElement | null, lineNumber: number) {
   await nextTick()
 
@@ -964,6 +997,41 @@ async function exportHistoryLogs() {
   }
 }
 
+async function copyDiagnosticContext(title: string, context: LogContextView | null) {
+  try {
+    runtimeErrorMessage.value = ''
+
+    if (!context) {
+      logWorkspaceMessage.value = text.value.serviceLogDiagnosticEmpty
+      return
+    }
+
+    await copyLogs(title, context.contextLines)
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
+  }
+}
+
+async function exportDiagnosticContext(
+  title: string,
+  sourcePath: string | null,
+  fileNameBase: string,
+  context: LogContextView | null
+) {
+  try {
+    runtimeErrorMessage.value = ''
+
+    if (!context) {
+      logWorkspaceMessage.value = text.value.serviceLogDiagnosticEmpty
+      return
+    }
+
+    await exportLogs(title, sourcePath, fileNameBase, context.contextLines)
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log export error'
+  }
+}
+
 async function focusLiveDiagnostic(lineNumber: number) {
   liveLogFollowEnabled.value = false
   selectedLiveDiagnosticLineNumber.value = lineNumber
@@ -973,6 +1041,32 @@ async function focusLiveDiagnostic(lineNumber: number) {
 async function focusHistoryDiagnostic(lineNumber: number) {
   selectedHistoryDiagnosticLineNumber.value = lineNumber
   await scrollToLogLine(historyLogPanelRef.value, lineNumber)
+}
+
+async function copyLiveDiagnosticContext() {
+  await copyDiagnosticContext(text.value.serviceLogContextTitle, liveDiagnosticContext.value)
+}
+
+async function exportLiveDiagnosticContext() {
+  await exportDiagnosticContext(
+    text.value.serviceLogContextTitle,
+    activeLogInstance.value?.logFilePath ?? null,
+    `${activeLogInstance.value?.artifactId ?? 'service'}-diagnostic-context`,
+    liveDiagnosticContext.value
+  )
+}
+
+async function copyHistoryDiagnosticContext() {
+  await copyDiagnosticContext(text.value.serviceLogContextTitle, historyDiagnosticContext.value)
+}
+
+async function exportHistoryDiagnosticContext() {
+  await exportDiagnosticContext(
+    text.value.serviceLogContextTitle,
+    activeLogHistory.value?.entry.filePath ?? null,
+    `${activeLogHistory.value?.entry.fileName.replace(/\.log$/i, '') ?? 'history'}-diagnostic-context`,
+    historyDiagnosticContext.value
+  )
 }
 
 function createServiceLaunchRequest(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
@@ -1501,6 +1595,28 @@ const historyDiagnosticLineViews = computed(() =>
   filteredHistoryLogLineViews.value.filter((line) => line.isDiagnostic).slice(-12)
 )
 
+const selectedLiveDiagnosticLineView = computed(
+  () =>
+    liveDiagnosticLineViews.value.find((line) => line.lineNumber === selectedLiveDiagnosticLineNumber.value) ??
+    liveDiagnosticLineViews.value.at(-1) ??
+    null
+)
+
+const selectedHistoryDiagnosticLineView = computed(
+  () =>
+    historyDiagnosticLineViews.value.find((line) => line.lineNumber === selectedHistoryDiagnosticLineNumber.value) ??
+    historyDiagnosticLineViews.value.at(-1) ??
+    null
+)
+
+const liveDiagnosticContext = computed(() =>
+  buildContextLineViews(activeLogInstance.value?.logLines ?? [], selectedLiveDiagnosticLineView.value?.lineNumber ?? 0)
+)
+
+const historyDiagnosticContext = computed(() =>
+  buildContextLineViews(activeLogHistory.value?.lines ?? [], selectedHistoryDiagnosticLineView.value?.lineNumber ?? 0)
+)
+
 watch(filteredActiveLogLineViews, (lineViews) => {
   if (selectedLiveDiagnosticLineNumber.value === null) {
     return
@@ -1518,6 +1634,28 @@ watch(filteredHistoryLogLineViews, (lineViews) => {
 
   if (!lineViews.some((line) => line.lineNumber === selectedHistoryDiagnosticLineNumber.value)) {
     selectedHistoryDiagnosticLineNumber.value = null
+  }
+})
+
+watch(liveDiagnosticLineViews, (lineViews) => {
+  if (lineViews.length === 0) {
+    selectedLiveDiagnosticLineNumber.value = null
+    return
+  }
+
+  if (selectedLiveDiagnosticLineNumber.value === null) {
+    selectedLiveDiagnosticLineNumber.value = lineViews.at(-1)?.lineNumber ?? null
+  }
+})
+
+watch(historyDiagnosticLineViews, (lineViews) => {
+  if (lineViews.length === 0) {
+    selectedHistoryDiagnosticLineNumber.value = null
+    return
+  }
+
+  if (selectedHistoryDiagnosticLineNumber.value === null) {
+    selectedHistoryDiagnosticLineNumber.value = lineViews.at(-1)?.lineNumber ?? null
   }
 })
 
@@ -2673,6 +2811,66 @@ const closeActionOptions = computed(() => [
                 </template>
               </div>
 
+              <div class="log-summary-panel">
+                <div class="project-panel__subheader">
+                  <h3>{{ text.serviceLogContextTitle }}</h3>
+                  <div class="log-toolbar__actions">
+                    <button
+                      class="secondary-button log-toolbar__button"
+                      type="button"
+                      :disabled="!liveDiagnosticContext"
+                      @click="copyLiveDiagnosticContext"
+                    >
+                      {{ text.serviceLogCopyContext }}
+                    </button>
+                    <button
+                      class="secondary-button log-toolbar__button"
+                      type="button"
+                      :disabled="!liveDiagnosticContext"
+                      @click="exportLiveDiagnosticContext"
+                    >
+                      {{ text.serviceLogExportContext }}
+                    </button>
+                  </div>
+                </div>
+
+                <template v-if="liveDiagnosticContext && selectedLiveDiagnosticLineView">
+                  <div class="scan-meta">
+                    <div class="pill ghost">
+                      {{ text.serviceLogLinePrefix }} {{ selectedLiveDiagnosticLineView.lineNumber }}
+                    </div>
+                    <div class="pill ghost">
+                      {{ text.serviceLogContextRange }}:
+                      {{ liveDiagnosticContext.startLineNumber }} - {{ liveDiagnosticContext.endLineNumber }}
+                    </div>
+                  </div>
+                  <p class="muted">{{ selectedLiveDiagnosticLineView.text }}</p>
+                  <div class="logs-panel">
+                    <span>{{ text.serviceLogContextTitle }}</span>
+                    <div class="logs-panel__content">
+                      <div
+                        v-for="line in liveDiagnosticContext.contextLines"
+                        :key="`live-context-${line.lineNumber}`"
+                        class="log-line"
+                        :class="[
+                          `log-line--${line.level}`,
+                          {
+                            'log-line--diagnostic': line.isDiagnostic,
+                            'log-line--selected': selectedLiveDiagnosticLineNumber === line.lineNumber
+                          }
+                        ]"
+                      >
+                        <span class="log-line__number">{{ line.lineNumber }}</span>
+                        <span class="log-line__text">{{ line.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <p class="muted">{{ text.serviceLogContextEmpty }}</p>
+                </template>
+              </div>
+
               <div class="logs-panel logs-panel--workspace">
                 <span>{{ text.serviceLogs }}</span>
                 <div
@@ -2836,6 +3034,66 @@ const closeActionOptions = computed(() => [
                                 <span>{{ line.text }}</span>
                               </button>
                             </div>
+                          </template>
+                        </div>
+
+                        <div class="log-summary-panel">
+                          <div class="project-panel__subheader">
+                            <h3>{{ text.serviceLogContextTitle }}</h3>
+                            <div class="log-toolbar__actions">
+                              <button
+                                class="secondary-button log-toolbar__button"
+                                type="button"
+                                :disabled="!historyDiagnosticContext"
+                                @click="copyHistoryDiagnosticContext"
+                              >
+                                {{ text.serviceLogCopyContext }}
+                              </button>
+                              <button
+                                class="secondary-button log-toolbar__button"
+                                type="button"
+                                :disabled="!historyDiagnosticContext"
+                                @click="exportHistoryDiagnosticContext"
+                              >
+                                {{ text.serviceLogExportContext }}
+                              </button>
+                            </div>
+                          </div>
+
+                          <template v-if="historyDiagnosticContext && selectedHistoryDiagnosticLineView">
+                            <div class="scan-meta">
+                              <div class="pill ghost">
+                                {{ text.serviceLogLinePrefix }} {{ selectedHistoryDiagnosticLineView.lineNumber }}
+                              </div>
+                              <div class="pill ghost">
+                                {{ text.serviceLogContextRange }}:
+                                {{ historyDiagnosticContext.startLineNumber }} - {{ historyDiagnosticContext.endLineNumber }}
+                              </div>
+                            </div>
+                            <p class="muted">{{ selectedHistoryDiagnosticLineView.text }}</p>
+                            <div class="logs-panel">
+                              <span>{{ text.serviceLogContextTitle }}</span>
+                              <div class="logs-panel__content">
+                                <div
+                                  v-for="line in historyDiagnosticContext.contextLines"
+                                  :key="`history-context-${line.lineNumber}`"
+                                  class="log-line"
+                                  :class="[
+                                    `log-line--${line.level}`,
+                                    {
+                                      'log-line--diagnostic': line.isDiagnostic,
+                                      'log-line--selected': selectedHistoryDiagnosticLineNumber === line.lineNumber
+                                    }
+                                  ]"
+                                >
+                                  <span class="log-line__number">{{ line.lineNumber }}</span>
+                                  <span class="log-line__text">{{ line.text }}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <p class="muted">{{ text.serviceLogContextEmpty }}</p>
                           </template>
                         </div>
 

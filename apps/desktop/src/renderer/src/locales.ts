@@ -175,6 +175,11 @@ interface LocaleMessages {
   serviceLogHighlightsTitle: string
   serviceLogDiagnosticEmpty: string
   serviceLogLinePrefix: string
+  serviceLogContextTitle: string
+  serviceLogContextEmpty: string
+  serviceLogContextRange: string
+  serviceLogCopyContext: string
+  serviceLogExportContext: string
   serviceLogHistoryTitle: string
   serviceLogHistoryLoading: string
   serviceLogHistoryEmpty: string
@@ -424,6 +429,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogHighlightsTitle: '异常与失败定位',
     serviceLogDiagnosticEmpty: '当前筛选结果里还没有识别到异常或失败日志。',
     serviceLogLinePrefix: '第',
+    serviceLogContextTitle: '异常上下文',
+    serviceLogContextEmpty: '当前还没有可展示的异常上下文。',
+    serviceLogContextRange: '上下文范围',
+    serviceLogCopyContext: '复制上下文',
+    serviceLogExportContext: '导出上下文',
     serviceLogHistoryTitle: '历史日志',
     serviceLogHistoryLoading: '正在读取历史日志...',
     serviceLogHistoryEmpty: '当前还没有可读取的历史日志文件。',
@@ -669,6 +679,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogHighlightsTitle: 'Error And Failure Highlights',
     serviceLogDiagnosticEmpty: 'No error or failure lines were detected in the current filtered logs.',
     serviceLogLinePrefix: 'Line',
+    serviceLogContextTitle: 'Diagnostic Context',
+    serviceLogContextEmpty: 'No diagnostic context is available right now.',
+    serviceLogContextRange: 'Context Range',
+    serviceLogCopyContext: 'Copy Context',
+    serviceLogExportContext: 'Export Context',
     serviceLogHistoryTitle: 'Log History',
     serviceLogHistoryLoading: 'Loading log history...',
     serviceLogHistoryEmpty: 'No historical log file is available yet.',
