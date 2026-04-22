@@ -68,6 +68,7 @@ export interface ProjectScanResult {
 export type BuildToolKind = 'mvnw' | 'mvn' | 'mvnd'
 export type BuildToolPreference = 'auto' | BuildToolKind
 export type ServiceStatus = 'idle' | 'building' | 'running' | 'stopped' | 'failed'
+export type ServiceHealthStatus = 'unknown' | 'healthy' | 'unhealthy'
 export type DesktopCloseAction = 'quit' | 'hide'
 
 export interface ToolAvailability {
@@ -152,6 +153,10 @@ export interface ServiceInstanceState {
   lastExitCode: number | null
   runtimePort: number | null
   portReachable: boolean
+  healthStatus: ServiceHealthStatus
+  healthUrl: string | null
+  healthDetail: string | null
+  lastHealthCheckAt: string | null
   cpuPercent: number | null
   memoryRssBytes: number | null
   logFilePath: string | null

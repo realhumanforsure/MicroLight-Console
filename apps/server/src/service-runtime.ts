@@ -7,6 +7,7 @@ import path from 'node:path'
 import pidusage from 'pidusage'
 import type {
   BuildToolKind,
+  ServiceHealthStatus,
   ServiceInstanceState,
   ServiceLaunchRequest,
   ServiceStatus
@@ -71,6 +72,10 @@ class ServiceRuntimeManager {
     state.memoryRssBytes = null
     state.runtimePort = request.runtimePort
     state.portReachable = false
+    state.healthStatus = 'unknown'
+    state.healthUrl = null
+    state.healthDetail = null
+    state.lastHealthCheckAt = null
     this.instances.set(serviceId, {
       state,
       process: null,
@@ -209,6 +214,10 @@ class ServiceRuntimeManager {
     instance.state.cpuPercent = null
     instance.state.memoryRssBytes = null
     instance.state.portReachable = false
+    instance.state.healthStatus = 'unknown'
+    instance.state.healthUrl = null
+    instance.state.healthDetail = null
+    instance.state.lastHealthCheckAt = null
     instance.state.lastUpdatedAt = new Date().toISOString()
     this.emitState(instance.state)
     return instance.state
@@ -295,6 +304,11 @@ class ServiceRuntimeManager {
         }
 
         instance.state.portReachable = await checkPortReachable(instance.state.runtimePort)
+        const health = await checkServiceHealth(instance.state.runtimePort, instance.state.portReachable)
+        instance.state.healthStatus = health.status
+        instance.state.healthUrl = health.url
+        instance.state.healthDetail = health.detail
+        instance.state.lastHealthCheckAt = new Date().toISOString()
         instance.state.lastUpdatedAt = new Date().toISOString()
         this.emitState(instance.state)
       })
@@ -319,6 +333,10 @@ function createInitialState(serviceId: string, request: ServiceLaunchRequest): S
     lastExitCode: null,
     runtimePort: request.runtimePort,
     portReachable: false,
+    healthStatus: 'unknown',
+    healthUrl: null,
+    healthDetail: null,
+    lastHealthCheckAt: null,
     cpuPercent: null,
     memoryRssBytes: null,
     logFilePath: null,
@@ -608,4 +626,56 @@ async function checkPortReachable(port: number | null) {
 
     socket.connect(port, '127.0.0.1')
   })
+}
+
+export async function checkServiceHealth(port: number | null, portReachable: boolean) {
+  if (port === null) {
+    return createHealthResult('unknown', null, 'No runtime port is configured.')
+  }
+
+  if (!portReachable) {
+    return createHealthResult('unhealthy', null, `Port ${port} is not reachable.`)
+  }
+
+  const healthUrl = `http://127.0.0.1:${port}/actuator/health`
+
+  try {
+    const response = await fetch(healthUrl, {
+      signal: AbortSignal.timeout(1000)
+    })
+
+    if (response.status === 404) {
+      return createHealthResult('unknown', healthUrl, 'Actuator health endpoint was not found, but the port is reachable.')
+    }
+
+    if (!response.ok) {
+      return createHealthResult('unhealthy', healthUrl, `Health endpoint returned HTTP ${response.status}.`)
+    }
+
+    const contentType = response.headers.get('content-type') ?? ''
+
+    if (contentType.includes('application/json')) {
+      const payload = (await response.json()) as { status?: string }
+
+      if (payload.status && payload.status.toUpperCase() !== 'UP') {
+        return createHealthResult('unhealthy', healthUrl, `Health status is ${payload.status}.`)
+      }
+    }
+
+    return createHealthResult('healthy', healthUrl, 'Health endpoint responded successfully.')
+  } catch (error) {
+    return createHealthResult(
+      'unhealthy',
+      healthUrl,
+      error instanceof Error ? error.message : 'Health endpoint request failed.'
+    )
+  }
+}
+
+function createHealthResult(status: ServiceHealthStatus, url: string | null, detail: string) {
+  return {
+    status,
+    url,
+    detail
+  }
 }

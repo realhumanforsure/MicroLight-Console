@@ -542,6 +542,17 @@ function getServiceGroupItemStatusLabel(status: ServiceGroupInstance['services']
   }
 }
 
+function getServiceHealthLabel(status: ServiceInstanceState['healthStatus']) {
+  switch (status) {
+    case 'healthy':
+      return text.value.serviceHealthHealthy
+    case 'unhealthy':
+      return text.value.serviceHealthUnhealthy
+    default:
+      return text.value.serviceHealthUnknown
+  }
+}
+
 function formatCpu(cpuPercent: number | null) {
   return cpuPercent === null ? text.value.runtimePending : `${cpuPercent.toFixed(1)}%`
 }
@@ -1523,6 +1534,21 @@ const closeActionOptions = computed(() => [
                           : text.closedPort
                       }}
                     </div>
+                    <div
+                      class="pill ghost"
+                      :class="{
+                        'pill--danger':
+                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].healthStatus ===
+                          'unhealthy'
+                      }"
+                    >
+                      {{ text.serviceHealth }}:
+                      {{
+                        getServiceHealthLabel(
+                          serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].healthStatus
+                        )
+                      }}
+                    </div>
                     <div class="pill ghost">
                       {{ text.servicePid }}:
                       {{
@@ -1562,6 +1588,14 @@ const closeActionOptions = computed(() => [
                       text.serviceNoLogs
                     }}</pre>
                   </div>
+
+                  <p class="muted">
+                    {{ text.serviceHealthDetail }}:
+                    {{
+                      serviceInstances[getServiceId(module.artifactId, candidate.mainClass)].healthDetail ??
+                      text.runtimePending
+                    }}
+                  </p>
                 </div>
               </li>
             </ul>
@@ -1614,6 +1648,12 @@ const closeActionOptions = computed(() => [
                   {{ text.servicePortReachable }}:
                   {{ activeLogInstance.portReachable ? text.openPort : text.closedPort }}
                 </div>
+                <div
+                  class="pill ghost"
+                  :class="{ 'pill--danger': activeLogInstance.healthStatus === 'unhealthy' }"
+                >
+                  {{ text.serviceHealth }}: {{ getServiceHealthLabel(activeLogInstance.healthStatus) }}
+                </div>
                 <div class="pill ghost">
                   {{ text.serviceCpu }}: {{ formatCpu(activeLogInstance.cpuPercent) }}
                 </div>
@@ -1625,6 +1665,11 @@ const closeActionOptions = computed(() => [
               <div class="workspace-meta">
                 <span>{{ text.serviceLogFile }}</span>
                 <strong>{{ activeLogInstance.logFilePath ?? text.runtimePending }}</strong>
+              </div>
+
+              <div class="workspace-meta">
+                <span>{{ text.serviceHealthDetail }}</span>
+                <strong>{{ activeLogInstance.healthDetail ?? text.runtimePending }}</strong>
               </div>
 
               <div class="logs-panel logs-panel--workspace">

@@ -112,6 +112,11 @@ interface LocaleMessages {
   serviceStatus: string
   servicePort: string
   servicePortReachable: string
+  serviceHealth: string
+  serviceHealthHealthy: string
+  serviceHealthUnhealthy: string
+  serviceHealthUnknown: string
+  serviceHealthDetail: string
   servicePid: string
   serviceBuildTool: string
   serviceCpu: string
@@ -288,6 +293,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceStatus: '状态',
     servicePort: '端口',
     servicePortReachable: '端口连通',
+    serviceHealth: '健康状态',
+    serviceHealthHealthy: '健康',
+    serviceHealthUnhealthy: '异常',
+    serviceHealthUnknown: '未知',
+    serviceHealthDetail: '健康检查详情',
     servicePid: 'PID',
     serviceBuildTool: '构建器',
     serviceCpu: 'CPU',
@@ -460,6 +470,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceStatus: 'Status',
     servicePort: 'Port',
     servicePortReachable: 'Port Reachability',
+    serviceHealth: 'Health',
+    serviceHealthHealthy: 'Healthy',
+    serviceHealthUnhealthy: 'Unhealthy',
+    serviceHealthUnknown: 'Unknown',
+    serviceHealthDetail: 'Health Detail',
     servicePid: 'PID',
     serviceBuildTool: 'Build Tool',
     serviceCpu: 'CPU',

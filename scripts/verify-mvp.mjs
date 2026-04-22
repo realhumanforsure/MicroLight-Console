@@ -1,4 +1,5 @@
 import { access, cp, mkdir, rm } from 'node:fs/promises'
+import http from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,6 +19,7 @@ const tempRoot = path.join(os.tmpdir(), `MicroLight Console 验收-${Date.now()}
 const tempProjectPath = path.join(tempRoot, '示例 项目')
 
 const { createServer } = await import('../apps/server/dist/index.js')
+const { checkServiceHealth } = await import('../apps/server/dist/service-runtime.js')
 const app = await createServer()
 const results = []
 
@@ -139,6 +141,43 @@ try {
     assert(emptyLaunchResponse.statusCode === 400, `空服务组应返回 400，实际 ${emptyLaunchResponse.statusCode}`)
 
     return `服务组列表可读，空服务组保护生效`
+  })
+
+  await check('service-health-probe', '服务健康检查探测', async () => {
+    const probeServer = http.createServer((request, response) => {
+      if (request.url === '/actuator/health') {
+        response.writeHead(200, {
+          'content-type': 'application/json'
+        })
+        response.end(JSON.stringify({ status: 'UP' }))
+        return
+      }
+
+      response.writeHead(404)
+      response.end()
+    })
+
+    await new Promise((resolve) => {
+      probeServer.listen(0, '127.0.0.1', resolve)
+    })
+
+    try {
+      const address = probeServer.address()
+
+      assert(address && typeof address === 'object', '无法读取健康检查模拟服务端口')
+
+      const healthy = await checkServiceHealth(address.port, true)
+      const unreachable = await checkServiceHealth(address.port, false)
+
+      assert(healthy.status === 'healthy', `期望健康状态 healthy，实际 ${healthy.status}`)
+      assert(unreachable.status === 'unhealthy', `期望不可达状态 unhealthy，实际 ${unreachable.status}`)
+
+      return `Actuator UP 和端口不可达分支均通过`
+    } finally {
+      await new Promise((resolve) => {
+        probeServer.close(resolve)
+      })
+    }
   })
 } finally {
   await rm(tempRoot, { recursive: true, force: true })
