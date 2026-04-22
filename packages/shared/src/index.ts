@@ -216,6 +216,25 @@ export interface ServiceLogContentResponse {
   truncated: boolean
 }
 
+export interface PortDiagnosisRequest {
+  port: number
+}
+
+export interface PortListenerProcess {
+  protocol: string
+  localAddress: string
+  localPort: number
+  pid: number | null
+  processName: string | null
+}
+
+export interface PortDiagnosisResponse {
+  port: number
+  status: 'listening' | 'not_listening'
+  detectedAt: string
+  listeners: PortListenerProcess[]
+}
+
 export type ServiceGroupStatus = 'running' | 'completed' | 'failed' | 'stopping' | 'stopped'
 export type ServiceGroupItemStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped'
 

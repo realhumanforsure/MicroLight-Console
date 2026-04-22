@@ -10,6 +10,8 @@ import {
   DEFAULT_SERVER_HOST,
   DEFAULT_SERVER_PORT,
   type HealthResponse,
+  type PortDiagnosisRequest,
+  type PortDiagnosisResponse,
   type ProjectPreflightRequest,
   type ProjectPreferenceUpdateRequest,
   type ProjectScanRequest,
@@ -29,6 +31,7 @@ import {
   type ServiceStopRequest
 } from '@microlight/shared'
 import { persistenceService } from './persistence.js'
+import { diagnosePort } from './port-diagnostics.js'
 import { generateProjectPreflightReport } from './preflight.js'
 import { scanProject } from './project-scanner.js'
 import { getReleaseReadiness } from './release-readiness.js'
@@ -142,6 +145,21 @@ export async function createServer() {
       }
     }
   })
+
+  app.post<{ Body: PortDiagnosisRequest }>(
+    '/api/runtime/ports/diagnose',
+    async (request, reply): Promise<PortDiagnosisResponse | { message: string }> => {
+      try {
+        return await diagnosePort(request.body.port)
+      } catch (error) {
+        request.log.error(error)
+        reply.code(400)
+        return {
+          message: error instanceof Error ? error.message : 'Failed to diagnose port'
+        }
+      }
+    }
+  )
 
   app.get('/api/services/instances', async (): Promise<ServiceInstancesResponse> => {
     return {

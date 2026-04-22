@@ -357,6 +357,37 @@ try {
       })
     }
   })
+
+  await check('port-diagnosis', '端口占用诊断接口', async () => {
+    const probeServer = http.createServer((_, response) => {
+      response.writeHead(200)
+      response.end('ok')
+    })
+
+    await new Promise((resolve) => {
+      probeServer.listen(0, '127.0.0.1', resolve)
+    })
+
+    try {
+      const address = probeServer.address()
+
+      assert(address && typeof address === 'object', '无法读取端口诊断模拟服务端口')
+
+      const payload = await postJson('/api/runtime/ports/diagnose', {
+        port: address.port
+      })
+
+      assert(payload.port === address.port, `端口诊断返回端口 ${payload.port}`)
+      assert(payload.status === 'listening', `期望 listening，实际 ${payload.status}`)
+      assert(payload.listeners.length > 0, '端口诊断没有返回监听进程')
+
+      return `端口 ${address.port} 已识别 ${payload.listeners.length} 个监听进程`
+    } finally {
+      await new Promise((resolve) => {
+        probeServer.close(resolve)
+      })
+    }
+  })
 } finally {
   await rm(tempRoot, { recursive: true, force: true })
   await app.close()

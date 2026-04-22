@@ -143,6 +143,14 @@ interface LocaleMessages {
   serviceStatus: string
   servicePort: string
   servicePortReachable: string
+  servicePortDiagnosisAction: string
+  servicePortDiagnosisRunning: string
+  servicePortDiagnosisTitle: string
+  servicePortDiagnosisListening: string
+  servicePortDiagnosisNotListening: string
+  servicePortDiagnosisEmpty: string
+  servicePortDiagnosisCheckedAt: string
+  servicePortDiagnosisNoPort: string
   serviceHealth: string
   serviceHealthHealthy: string
   serviceHealthUnhealthy: string
@@ -437,6 +445,14 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceStatus: '状态',
     servicePort: '端口',
     servicePortReachable: '端口连通',
+    servicePortDiagnosisAction: '诊断端口占用',
+    servicePortDiagnosisRunning: '正在诊断端口...',
+    servicePortDiagnosisTitle: '端口占用诊断',
+    servicePortDiagnosisListening: '端口已被监听',
+    servicePortDiagnosisNotListening: '端口未被监听',
+    servicePortDiagnosisEmpty: '当前没有发现监听该端口的进程。',
+    servicePortDiagnosisCheckedAt: '诊断时间',
+    servicePortDiagnosisNoPort: '当前服务没有配置运行端口，无法执行端口诊断。',
     serviceHealth: '健康状态',
     serviceHealthHealthy: '健康',
     serviceHealthUnhealthy: '异常',
@@ -727,6 +743,14 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceStatus: 'Status',
     servicePort: 'Port',
     servicePortReachable: 'Port Reachability',
+    servicePortDiagnosisAction: 'Diagnose Port Usage',
+    servicePortDiagnosisRunning: 'Diagnosing port...',
+    servicePortDiagnosisTitle: 'Port Usage Diagnosis',
+    servicePortDiagnosisListening: 'Port is listening',
+    servicePortDiagnosisNotListening: 'Port is not listening',
+    servicePortDiagnosisEmpty: 'No process is currently listening on this port.',
+    servicePortDiagnosisCheckedAt: 'Checked At',
+    servicePortDiagnosisNoPort: 'This service has no runtime port configured, so port diagnosis cannot run.',
     serviceHealth: 'Health',
     serviceHealthHealthy: 'Healthy',
     serviceHealthUnhealthy: 'Unhealthy',

@@ -16,6 +16,7 @@ import {
   type DesktopRuntimeInfo,
   type DesktopCloseAction,
   type HealthResponse,
+  type PortDiagnosisResponse,
   type PreflightCheckStatus,
   type ProjectPreflightReport,
   type ProjectPreflightRequest,
@@ -124,12 +125,14 @@ const selectedLogServiceId = ref('')
 const logHistoryEntries = ref<ServiceLogHistoryEntry[]>([])
 const selectedLogHistoryId = ref('')
 const activeLogHistory = ref<ServiceLogContentResponse | null>(null)
+const portDiagnosis = ref<PortDiagnosisResponse | null>(null)
 const loading = ref(true)
 const preflightLoading = ref(false)
 const releaseLoading = ref(false)
 const scanning = ref(false)
 const detecting = ref(false)
 const logHistoryLoading = ref(false)
+const portDiagnosisLoading = ref(false)
 const liveLogSearchKeyword = ref('')
 const liveLogLevelFilter = ref<LogLevelFilter>('all')
 const liveLogFollowEnabled = ref(true)
@@ -225,6 +228,7 @@ watch(selectedLogServiceId, (serviceId) => {
   }
 
   logWorkspaceMessage.value = ''
+  portDiagnosis.value = null
   liveLogSearchKeyword.value = ''
   liveLogLevelFilter.value = 'all'
   liveLogFollowEnabled.value = true
@@ -1414,6 +1418,40 @@ async function exportHistoryLogs() {
     )
   } catch (error) {
     runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log export error'
+  }
+}
+
+async function diagnoseActiveServicePort() {
+  const port = activeLogInstance.value?.runtimePort
+
+  if (!port) {
+    logWorkspaceMessage.value = text.value.servicePortDiagnosisNoPort
+    return
+  }
+
+  portDiagnosisLoading.value = true
+  runtimeErrorMessage.value = ''
+
+  try {
+    const response = await fetch(`${runtimeInfo.value?.serverUrl ?? DEFAULT_SERVER_URL}/api/runtime/ports/diagnose`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ port })
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json()) as { message?: string }
+      throw new Error(payload.message ?? `Port diagnosis failed: ${response.status}`)
+    }
+
+    portDiagnosis.value = (await response.json()) as PortDiagnosisResponse
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown port diagnosis error'
+    portDiagnosis.value = null
+  } finally {
+    portDiagnosisLoading.value = false
   }
 }
 
@@ -3297,6 +3335,14 @@ const closeActionOptions = computed(() => [
                 <div class="pill ghost">
                   {{ text.serviceMemory }}: {{ formatMemory(activeLogInstance.memoryRssBytes) }}
                 </div>
+                <button
+                  class="secondary-button log-toolbar__button"
+                  type="button"
+                  :disabled="activeLogInstance.runtimePort === null || portDiagnosisLoading"
+                  @click="diagnoseActiveServicePort"
+                >
+                  {{ portDiagnosisLoading ? text.servicePortDiagnosisRunning : text.servicePortDiagnosisAction }}
+                </button>
               </div>
 
               <div class="workspace-meta">
@@ -3307,6 +3353,47 @@ const closeActionOptions = computed(() => [
               <div class="workspace-meta">
                 <span>{{ text.serviceHealthDetail }}</span>
                 <strong>{{ activeLogInstance.healthDetail ?? text.runtimePending }}</strong>
+              </div>
+
+              <div
+                v-if="portDiagnosis"
+                class="log-summary-panel"
+              >
+                <div class="project-panel__subheader">
+                  <h3>{{ text.servicePortDiagnosisTitle }}</h3>
+                  <span
+                    class="pill ghost"
+                    :class="{ 'pill--warn': portDiagnosis.status === 'listening' }"
+                  >
+                    {{ portDiagnosis.status === 'listening' ? text.servicePortDiagnosisListening : text.servicePortDiagnosisNotListening }}
+                  </span>
+                </div>
+
+                <div class="scan-meta">
+                  <div class="pill ghost">
+                    {{ text.servicePort }}: {{ portDiagnosis.port }}
+                  </div>
+                  <div class="pill ghost">
+                    {{ text.servicePortDiagnosisCheckedAt }}: {{ portDiagnosis.detectedAt }}
+                  </div>
+                </div>
+
+                <template v-if="portDiagnosis.listeners.length === 0">
+                  <p class="muted">{{ text.servicePortDiagnosisEmpty }}</p>
+                </template>
+                <template v-else>
+                  <div class="port-diagnosis-list">
+                    <article
+                      v-for="listener in portDiagnosis.listeners"
+                      :key="`${listener.protocol}-${listener.localAddress}-${listener.pid ?? 'unknown'}`"
+                      class="port-diagnosis-card"
+                    >
+                      <strong>{{ listener.processName ?? text.runtimePending }}</strong>
+                      <span>PID: {{ listener.pid ?? text.runtimePending }}</span>
+                      <span>{{ listener.protocol }} · {{ listener.localAddress }}</span>
+                    </article>
+                  </div>
+                </template>
               </div>
 
               <div class="log-toolbar">
