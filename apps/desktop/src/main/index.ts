@@ -1,5 +1,6 @@
-import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage } from 'electron'
+import { app, BrowserWindow, Menu, Tray, clipboard, dialog, ipcMain, nativeImage } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
@@ -268,6 +269,52 @@ ipcMain.handle('app:apply-desktop-settings', async (_, settings: Pick<AppSetting
     ok: true
   }
 })
+
+ipcMain.handle('app:copy-text', async (_, text: string) => {
+  clipboard.writeText(text)
+  return {
+    ok: true
+  }
+})
+
+ipcMain.handle(
+  'app:save-text-file',
+  async (
+    _,
+    payload: {
+      title: string
+      defaultFileName: string
+      content: string
+    }
+  ) => {
+    const options = {
+      title: payload.title,
+      defaultPath: path.join(app.getPath('downloads'), payload.defaultFileName),
+      filters: [
+        { name: 'Log Files', extensions: ['log', 'txt'] },
+        { name: 'Text Files', extensions: ['txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    }
+    const result = mainWindow
+      ? await dialog.showSaveDialog(mainWindow, options)
+      : await dialog.showSaveDialog(options)
+
+    if (result.canceled || !result.filePath) {
+      return {
+        canceled: true,
+        filePath: null
+      }
+    }
+
+    await writeFile(result.filePath, payload.content, 'utf8')
+
+    return {
+      canceled: false,
+      filePath: result.filePath
+    }
+  }
+)
 
 app.whenReady().then(async () => {
   await startBackend()

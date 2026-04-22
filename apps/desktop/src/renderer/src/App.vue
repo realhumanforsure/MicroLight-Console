@@ -97,6 +97,7 @@ const scanErrorMessage = ref('')
 const runtimeErrorMessage = ref('')
 const settingsMessage = ref('')
 const serviceGroupMessage = ref('')
+const logWorkspaceMessage = ref('')
 const serviceActionState = ref<Record<string, boolean>>({})
 const serviceGroupActionRunning = ref(false)
 const serviceGroupStartupIntervalSeconds = ref('5')
@@ -177,6 +178,7 @@ watch(selectedLogServiceId, (serviceId) => {
     return
   }
 
+  logWorkspaceMessage.value = ''
   liveLogSearchKeyword.value = ''
   liveLogLevelFilter.value = 'all'
   liveLogFollowEnabled.value = true
@@ -743,6 +745,14 @@ function formatFileSize(sizeBytes: number) {
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+function formatExportTimestamp(date = new Date()) {
+  return date.toISOString().replace(/[:.]/g, '-')
+}
+
+function toSafeFileName(value: string) {
+  return value.replace(/[<>:"/\\|?*]+/g, '-').replace(/\s+/g, '-')
+}
+
 function matchesLogLevel(line: string, level: LogLevelFilter) {
   if (level === 'all') {
     return true
@@ -797,6 +807,101 @@ function toggleLiveLogFollow() {
 
   if (liveLogFollowEnabled.value) {
     void syncLiveLogScroll(true)
+  }
+}
+
+function buildLogExportContent(title: string, sourcePath: string | null, lines: string[]) {
+  const header = [
+    `${title}`,
+    `generatedAt=${new Date().toISOString()}`,
+    `projectPath=${selectedProjectPath.value || 'unknown'}`,
+    sourcePath ? `sourcePath=${sourcePath}` : null,
+    ''
+  ].filter((line): line is string => Boolean(line))
+
+  return [...header, ...lines].join('\n')
+}
+
+async function copyLogs(title: string, lines: string[]) {
+  if (lines.length === 0) {
+    logWorkspaceMessage.value = text.value.serviceLogActionEmpty
+    return
+  }
+
+  await window.microlight.copyText(lines.join('\n'))
+  logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
+}
+
+async function exportLogs(title: string, sourcePath: string | null, fileNameBase: string, lines: string[]) {
+  if (lines.length === 0) {
+    logWorkspaceMessage.value = text.value.serviceLogActionEmpty
+    return
+  }
+
+  const result = await window.microlight.saveTextFile({
+    title: `${title} · ${text.value.serviceLogExport}`,
+    defaultFileName: `${toSafeFileName(fileNameBase)}-${formatExportTimestamp()}.log`,
+    content: buildLogExportContent(title, sourcePath, lines)
+  })
+
+  if (result.canceled) {
+    return
+  }
+
+  logWorkspaceMessage.value = `${text.value.serviceLogExportedPrefix}${result.filePath ?? ''}`
+}
+
+async function copyLiveLogs() {
+  try {
+    runtimeErrorMessage.value = ''
+    await copyLogs(text.value.serviceLogs, filteredActiveLogLines.value)
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
+  }
+}
+
+async function exportLiveLogs() {
+  if (!activeLogInstance.value) {
+    return
+  }
+
+  try {
+    runtimeErrorMessage.value = ''
+    await exportLogs(
+      `${activeLogInstance.value.artifactId} ${text.value.serviceLogs}`,
+      activeLogInstance.value.logFilePath,
+      `${activeLogInstance.value.artifactId}-live-log`,
+      filteredActiveLogLines.value
+    )
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log export error'
+  }
+}
+
+async function copyHistoryLogs() {
+  try {
+    runtimeErrorMessage.value = ''
+    await copyLogs(text.value.serviceLogHistoryTitle, filteredHistoryLogLines.value)
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
+  }
+}
+
+async function exportHistoryLogs() {
+  if (!activeLogHistory.value) {
+    return
+  }
+
+  try {
+    runtimeErrorMessage.value = ''
+    await exportLogs(
+      `${activeLogHistory.value.entry.fileName} ${text.value.serviceLogHistoryTitle}`,
+      activeLogHistory.value.entry.filePath,
+      activeLogHistory.value.entry.fileName.replace(/\.log$/i, ''),
+      filteredHistoryLogLines.value
+    )
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log export error'
   }
 }
 
@@ -1250,6 +1355,7 @@ async function loadLogHistoryContent(serviceId: string, entryId: string) {
 
 function selectLogHistoryEntry(serviceId: string, entryId: string) {
   selectedLogHistoryId.value = entryId
+  logWorkspaceMessage.value = ''
   historyLogSearchKeyword.value = ''
   historyLogLevelFilter.value = 'all'
   void loadLogHistoryContent(serviceId, entryId)
@@ -2311,6 +2417,12 @@ const closeActionOptions = computed(() => [
       <div class="project-panel__subheader">
         <h2>{{ text.logsWorkspaceTitle }}</h2>
       </div>
+      <p
+        v-if="logWorkspaceMessage"
+        class="muted"
+      >
+        {{ logWorkspaceMessage }}
+      </p>
 
       <template v-if="logWorkspaceServices.length === 0">
         <p class="muted">{{ text.logsWorkspaceEmpty }}</p>
@@ -2391,13 +2503,31 @@ const closeActionOptions = computed(() => [
                   </select>
                 </label>
 
-                <button
-                  class="secondary-button log-toolbar__button"
-                  type="button"
-                  @click="toggleLiveLogFollow"
-                >
-                  {{ liveLogFollowEnabled ? text.serviceLogPauseScroll : text.serviceLogResumeScroll }}
-                </button>
+                <div class="log-toolbar__actions">
+                  <button
+                    class="secondary-button log-toolbar__button"
+                    type="button"
+                    :disabled="filteredActiveLogLines.length === 0"
+                    @click="copyLiveLogs"
+                  >
+                    {{ text.serviceLogCopy }}
+                  </button>
+                  <button
+                    class="secondary-button log-toolbar__button"
+                    type="button"
+                    :disabled="filteredActiveLogLines.length === 0"
+                    @click="exportLiveLogs"
+                  >
+                    {{ text.serviceLogExport }}
+                  </button>
+                  <button
+                    class="secondary-button log-toolbar__button"
+                    type="button"
+                    @click="toggleLiveLogFollow"
+                  >
+                    {{ liveLogFollowEnabled ? text.serviceLogPauseScroll : text.serviceLogResumeScroll }}
+                  </button>
+                </div>
               </div>
 
               <div class="scan-meta">
@@ -2480,6 +2610,25 @@ const closeActionOptions = computed(() => [
                               </option>
                             </select>
                           </label>
+
+                          <div class="log-toolbar__actions">
+                            <button
+                              class="secondary-button log-toolbar__button"
+                              type="button"
+                              :disabled="filteredHistoryLogLines.length === 0"
+                              @click="copyHistoryLogs"
+                            >
+                              {{ text.serviceLogCopy }}
+                            </button>
+                            <button
+                              class="secondary-button log-toolbar__button"
+                              type="button"
+                              :disabled="filteredHistoryLogLines.length === 0"
+                              @click="exportHistoryLogs"
+                            >
+                              {{ text.serviceLogExport }}
+                            </button>
+                          </div>
                         </div>
 
                         <div class="scan-meta">

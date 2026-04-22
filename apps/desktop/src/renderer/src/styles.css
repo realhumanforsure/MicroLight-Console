@@ -388,13 +388,20 @@ h1 {
 
 .log-toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 0.8fr) auto;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 0.8fr) minmax(0, auto);
   gap: 12px;
   align-items: end;
 }
 
 .log-toolbar__field {
   margin: 0;
+}
+
+.log-toolbar__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .log-toolbar__button {

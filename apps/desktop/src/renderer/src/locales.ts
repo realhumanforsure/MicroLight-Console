@@ -162,6 +162,11 @@ interface LocaleMessages {
   serviceLogLevelWarn: string
   serviceLogLevelError: string
   serviceLogLevelDebug: string
+  serviceLogCopy: string
+  serviceLogExport: string
+  serviceLogActionEmpty: string
+  serviceLogCopiedSuffix: string
+  serviceLogExportedPrefix: string
   serviceLogPauseScroll: string
   serviceLogResumeScroll: string
   serviceLogPaused: string
@@ -402,6 +407,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogLevelWarn: 'WARN',
     serviceLogLevelError: 'ERROR',
     serviceLogLevelDebug: 'DEBUG / TRACE',
+    serviceLogCopy: '复制日志',
+    serviceLogExport: '导出日志',
+    serviceLogActionEmpty: '当前没有可复制或导出的日志内容。',
+    serviceLogCopiedSuffix: ' 已复制到剪贴板。',
+    serviceLogExportedPrefix: '日志已导出到：',
     serviceLogPauseScroll: '暂停跟随',
     serviceLogResumeScroll: '恢复跟随',
     serviceLogPaused: '自动跟随已暂停',
@@ -638,6 +648,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogLevelWarn: 'WARN',
     serviceLogLevelError: 'ERROR',
     serviceLogLevelDebug: 'DEBUG / TRACE',
+    serviceLogCopy: 'Copy Logs',
+    serviceLogExport: 'Export Logs',
+    serviceLogActionEmpty: 'There are no logs available to copy or export.',
+    serviceLogCopiedSuffix: ' copied to clipboard.',
+    serviceLogExportedPrefix: 'Logs exported to: ',
     serviceLogPauseScroll: 'Pause Follow',
     serviceLogResumeScroll: 'Resume Follow',
     serviceLogPaused: 'Auto-follow paused',
