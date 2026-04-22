@@ -648,6 +648,14 @@ function getReleaseArtifactLabel(id: string) {
     return text.value.releaseUnpackedArtifact
   }
 
+  if (id === 'current-executable') {
+    return text.value.releaseCurrentExecutableArtifact
+  }
+
+  if (id === 'application-resources') {
+    return text.value.releaseApplicationResourcesArtifact
+  }
+
   return id
 }
 

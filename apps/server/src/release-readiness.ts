@@ -11,32 +11,78 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const workspaceRoot = path.resolve(__dirname, '..', '..', '..')
 const releaseRoot = path.join(workspaceRoot, 'apps', 'desktop', 'release')
-const installerPath = path.join(releaseRoot, 'MicroLight Console-0.1.0-x64.exe')
-const unpackedExePath = path.join(releaseRoot, 'win-unpacked', 'MicroLight Console.exe')
+const sourceInstallerPath = path.join(releaseRoot, 'MicroLight Console-0.1.0-x64.exe')
+const sourceUnpackedExePath = path.join(releaseRoot, 'win-unpacked', 'MicroLight Console.exe')
 
 export async function getReleaseReadiness(): Promise<ReleaseReadinessResponse> {
+  const runtimePaths = resolveRuntimePaths()
+
   return {
     generatedAt: new Date().toISOString(),
     platform: process.platform,
-    installerPath,
-    unpackedExePath,
-    artifacts: [
-      await createArtifactCheck(
-        'windows-installer',
-        'Windows installer',
-        installerPath,
-        'NSIS installer created with electron-builder.'
-      ),
-      await createArtifactCheck(
-        'unpacked-executable',
-        'Unpacked executable',
-        unpackedExePath,
-        'Portable validation target used before distributing the installer.'
+    installerPath: runtimePaths.installerPath,
+    unpackedExePath: runtimePaths.unpackedExePath,
+    artifacts: await Promise.all(
+      runtimePaths.artifacts.map((artifact) =>
+        createArtifactCheck(artifact.id, artifact.label, artifact.path, artifact.detail)
       )
-    ],
+    ),
     installationSteps: createInstallationSteps(),
     verificationSteps: createVerificationSteps()
   }
+}
+
+function resolveRuntimePaths() {
+  if (isPackagedElectronRuntime()) {
+    const currentExecutablePath = process.execPath
+    const resourcesPath = getElectronResourcesPath() ?? path.dirname(currentExecutablePath)
+
+    return {
+      installerPath: currentExecutablePath,
+      unpackedExePath: currentExecutablePath,
+      artifacts: [
+        {
+          id: 'current-executable',
+          label: 'Current executable',
+          path: currentExecutablePath,
+          detail: 'Installed application executable is readable.'
+        },
+        {
+          id: 'application-resources',
+          label: 'Application resources',
+          path: resourcesPath,
+          detail: 'Packaged application resources directory is readable.'
+        }
+      ]
+    }
+  }
+
+  return {
+    installerPath: sourceInstallerPath,
+    unpackedExePath: sourceUnpackedExePath,
+    artifacts: [
+      {
+        id: 'windows-installer',
+        label: 'Windows installer',
+        path: sourceInstallerPath,
+        detail: 'NSIS installer created with electron-builder.'
+      },
+      {
+        id: 'unpacked-executable',
+        label: 'Unpacked executable',
+        path: sourceUnpackedExePath,
+        detail: 'Portable validation target used before distributing the installer.'
+      }
+    ]
+  }
+}
+
+function isPackagedElectronRuntime() {
+  return Boolean(process.versions.electron && getElectronResourcesPath())
+}
+
+function getElectronResourcesPath() {
+  return (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
 }
 
 async function createArtifactCheck(

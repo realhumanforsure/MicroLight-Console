@@ -42,6 +42,8 @@ interface LocaleMessages {
   releaseGeneratedAt: string
   releaseInstallerArtifact: string
   releaseUnpackedArtifact: string
+  releaseCurrentExecutableArtifact: string
+  releaseApplicationResourcesArtifact: string
   releaseAvailable: string
   releaseMissing: string
   releaseInstallStepsTitle: string
@@ -323,6 +325,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     releaseGeneratedAt: '最近检查时间',
     releaseInstallerArtifact: 'Windows 安装器',
     releaseUnpackedArtifact: '解压版可执行文件',
+    releaseCurrentExecutableArtifact: '当前可执行文件',
+    releaseApplicationResourcesArtifact: '应用资源目录',
     releaseAvailable: '已生成',
     releaseMissing: '缺失',
     releaseInstallStepsTitle: '安装步骤',
@@ -626,6 +630,8 @@ export const messages: Record<Locale, LocaleMessages> = {
     releaseGeneratedAt: 'Last Check Time',
     releaseInstallerArtifact: 'Windows Installer',
     releaseUnpackedArtifact: 'Unpacked Executable',
+    releaseCurrentExecutableArtifact: 'Current Executable',
+    releaseApplicationResourcesArtifact: 'Application Resources',
     releaseAvailable: 'Generated',
     releaseMissing: 'Missing',
     releaseInstallStepsTitle: 'Installation Steps',
