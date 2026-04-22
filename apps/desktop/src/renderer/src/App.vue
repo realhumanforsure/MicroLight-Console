@@ -71,6 +71,14 @@ interface LogContextView {
   endLineNumber: number
 }
 
+interface DiagnosticGroupView {
+  key: string
+  label: string
+  count: number
+  latestLineView: LogLineView
+  lineNumbers: number[]
+}
+
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
@@ -797,6 +805,34 @@ function isDiagnosticLogLine(line: string) {
   return /\berror\b/i.test(line) || /\bexception\b/i.test(line) || /\bcaused by\b/i.test(line) || /\bfailed\b/i.test(line)
 }
 
+function normalizeDiagnosticSignature(line: string) {
+  return line
+    .toLowerCase()
+    .replace(/\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?/g, '<timestamp>')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/g, '<uuid>')
+    .replace(/\b0x[0-9a-f]+\b/gi, '<hex>')
+    .replace(/\b\d+\b/g, '<num>')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildDiagnosticLabel(line: string) {
+  const normalizedLine = line.trim()
+  const causedByMatch = normalizedLine.match(/caused by:\s*(.+)/i)
+
+  if (causedByMatch) {
+    return causedByMatch[1]
+  }
+
+  const exceptionMatch = normalizedLine.match(/([\w.$]+(?:Exception|Error))(?::\s*(.+))?/i)
+
+  if (exceptionMatch) {
+    return exceptionMatch[2] ? `${exceptionMatch[1]}: ${exceptionMatch[2]}` : exceptionMatch[1]
+  }
+
+  return normalizedLine
+}
+
 function matchesLogLevel(line: string, level: LogLevelFilter) {
   if (level === 'all') {
     return true
@@ -865,6 +901,41 @@ function buildContextLineViews(lines: string[], centerLineNumber: number, radius
   }
 }
 
+function buildDiagnosticGroups(lineViews: LogLineView[]) {
+  const groupMap = new Map<string, DiagnosticGroupView>()
+
+  for (const lineView of lineViews.filter((line) => line.isDiagnostic)) {
+    const key = normalizeDiagnosticSignature(lineView.text)
+    const existingGroup = groupMap.get(key)
+
+    if (!existingGroup) {
+      groupMap.set(key, {
+        key,
+        label: buildDiagnosticLabel(lineView.text),
+        count: 1,
+        latestLineView: lineView,
+        lineNumbers: [lineView.lineNumber]
+      })
+      continue
+    }
+
+    existingGroup.count += 1
+    existingGroup.lineNumbers.push(lineView.lineNumber)
+
+    if (lineView.lineNumber >= existingGroup.latestLineView.lineNumber) {
+      existingGroup.latestLineView = lineView
+    }
+  }
+
+  return Array.from(groupMap.values()).sort((left, right) => {
+    if (right.count !== left.count) {
+      return right.count - left.count
+    }
+
+    return right.latestLineView.lineNumber - left.latestLineView.lineNumber
+  })
+}
+
 async function scrollToLogLine(panel: HTMLElement | null, lineNumber: number) {
   await nextTick()
 
@@ -912,6 +983,33 @@ function buildLogExportContent(title: string, sourcePath: string | null, lines: 
   ].filter((line): line is string => Boolean(line))
 
   return [...header, ...lines].join('\n')
+}
+
+function buildDiagnosticBundleContent(
+  title: string,
+  sourcePath: string | null,
+  groups: DiagnosticGroupView[],
+  sourceLines: string[]
+) {
+  const sections = groups.flatMap((group, index) => {
+    const context = buildContextLineViews(sourceLines, group.latestLineView.lineNumber)
+
+    return [
+      `#${index + 1} ${group.label}`,
+      `count=${group.count}`,
+      `latestLine=${group.latestLineView.lineNumber}`,
+      context ? `contextRange=${context.startLineNumber}-${context.endLineNumber}` : null,
+      '',
+      ...(context
+        ? context.contextLines.map((line) => `${String(line.lineNumber).padStart(4, ' ')} | ${line.text}`)
+        : [group.latestLineView.text]),
+      '',
+      '------------------------------------------------------------',
+      ''
+    ].filter((line): line is string => line !== null)
+  })
+
+  return buildLogExportContent(title, sourcePath, sections)
 }
 
 async function copyLogs(title: string, lineViews: LogLineView[]) {
@@ -1032,6 +1130,58 @@ async function exportDiagnosticContext(
   }
 }
 
+async function copyDiagnosticBundle(
+  title: string,
+  groups: DiagnosticGroupView[],
+  sourcePath: string | null,
+  sourceLines: string[]
+) {
+  try {
+    runtimeErrorMessage.value = ''
+
+    if (groups.length === 0) {
+      logWorkspaceMessage.value = text.value.serviceLogDiagnosticEmpty
+      return
+    }
+
+    await window.microlight.copyText(buildDiagnosticBundleContent(title, sourcePath, groups, sourceLines))
+    logWorkspaceMessage.value = `${title}${text.value.serviceLogCopiedSuffix}`
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log copy error'
+  }
+}
+
+async function exportDiagnosticBundle(
+  title: string,
+  sourcePath: string | null,
+  fileNameBase: string,
+  groups: DiagnosticGroupView[],
+  sourceLines: string[]
+) {
+  try {
+    runtimeErrorMessage.value = ''
+
+    if (groups.length === 0) {
+      logWorkspaceMessage.value = text.value.serviceLogDiagnosticEmpty
+      return
+    }
+
+    const result = await window.microlight.saveTextFile({
+      title: `${title} · ${text.value.serviceLogExport}`,
+      defaultFileName: `${toSafeFileName(fileNameBase)}-${formatExportTimestamp()}.log`,
+      content: buildDiagnosticBundleContent(title, sourcePath, groups, sourceLines)
+    })
+
+    if (result.canceled) {
+      return
+    }
+
+    logWorkspaceMessage.value = `${text.value.serviceLogExportedPrefix}${result.filePath ?? ''}`
+  } catch (error) {
+    runtimeErrorMessage.value = error instanceof Error ? error.message : 'Unknown log export error'
+  }
+}
+
 async function focusLiveDiagnostic(lineNumber: number) {
   liveLogFollowEnabled.value = false
   selectedLiveDiagnosticLineNumber.value = lineNumber
@@ -1066,6 +1216,44 @@ async function exportHistoryDiagnosticContext() {
     activeLogHistory.value?.entry.filePath ?? null,
     `${activeLogHistory.value?.entry.fileName.replace(/\.log$/i, '') ?? 'history'}-diagnostic-context`,
     historyDiagnosticContext.value
+  )
+}
+
+async function copyLiveDiagnosticBundle() {
+  await copyDiagnosticBundle(
+    text.value.serviceLogAggregateTitle,
+    liveDiagnosticGroups.value,
+    activeLogInstance.value?.logFilePath ?? null,
+    activeLogInstance.value?.logLines ?? []
+  )
+}
+
+async function exportLiveDiagnosticBundle() {
+  await exportDiagnosticBundle(
+    text.value.serviceLogAggregateTitle,
+    activeLogInstance.value?.logFilePath ?? null,
+    `${activeLogInstance.value?.artifactId ?? 'service'}-diagnostic-bundle`,
+    liveDiagnosticGroups.value,
+    activeLogInstance.value?.logLines ?? []
+  )
+}
+
+async function copyHistoryDiagnosticBundle() {
+  await copyDiagnosticBundle(
+    text.value.serviceLogAggregateTitle,
+    historyDiagnosticGroups.value,
+    activeLogHistory.value?.entry.filePath ?? null,
+    activeLogHistory.value?.lines ?? []
+  )
+}
+
+async function exportHistoryDiagnosticBundle() {
+  await exportDiagnosticBundle(
+    text.value.serviceLogAggregateTitle,
+    activeLogHistory.value?.entry.filePath ?? null,
+    `${activeLogHistory.value?.entry.fileName.replace(/\.log$/i, '') ?? 'history'}-diagnostic-bundle`,
+    historyDiagnosticGroups.value,
+    activeLogHistory.value?.lines ?? []
   )
 }
 
@@ -1594,6 +1782,10 @@ const liveDiagnosticLineViews = computed(() =>
 const historyDiagnosticLineViews = computed(() =>
   filteredHistoryLogLineViews.value.filter((line) => line.isDiagnostic).slice(-12)
 )
+
+const liveDiagnosticGroups = computed(() => buildDiagnosticGroups(filteredActiveLogLineViews.value).slice(0, 8))
+
+const historyDiagnosticGroups = computed(() => buildDiagnosticGroups(filteredHistoryLogLineViews.value).slice(0, 8))
 
 const selectedLiveDiagnosticLineView = computed(
   () =>
@@ -2785,12 +2977,49 @@ const closeActionOptions = computed(() => [
               <div class="log-summary-panel">
                 <div class="project-panel__subheader">
                   <h3>{{ text.serviceLogHighlightsTitle }}</h3>
+                  <div class="log-toolbar__actions">
+                    <button
+                      class="secondary-button log-toolbar__button"
+                      type="button"
+                      :disabled="liveDiagnosticGroups.length === 0"
+                      @click="copyLiveDiagnosticBundle"
+                    >
+                      {{ text.serviceLogCopyAggregate }}
+                    </button>
+                    <button
+                      class="secondary-button log-toolbar__button"
+                      type="button"
+                      :disabled="liveDiagnosticGroups.length === 0"
+                      @click="exportLiveDiagnosticBundle"
+                    >
+                      {{ text.serviceLogExportAggregate }}
+                    </button>
+                  </div>
                 </div>
 
                 <template v-if="liveDiagnosticLineViews.length === 0">
                   <p class="muted">{{ text.serviceLogDiagnosticEmpty }}</p>
                 </template>
                 <template v-else>
+                  <div class="scan-meta">
+                    <div class="pill ghost">
+                      {{ text.serviceLogAggregateCount }}: {{ liveDiagnosticGroups.length }}
+                    </div>
+                  </div>
+                  <div class="diagnostic-group-list">
+                    <button
+                      v-for="group in liveDiagnosticGroups"
+                      :key="`live-group-${group.key}`"
+                      class="diagnostic-group-button"
+                      :class="{ active: group.lineNumbers.includes(selectedLiveDiagnosticLineNumber ?? -1) }"
+                      type="button"
+                      @click="focusLiveDiagnostic(group.latestLineView.lineNumber)"
+                    >
+                      <strong>{{ group.label }}</strong>
+                      <span>{{ text.serviceLogAggregateOccurrences }}: {{ group.count }}</span>
+                      <span>{{ text.serviceLogLinePrefix }} {{ group.latestLineView.lineNumber }}</span>
+                    </button>
+                  </div>
                   <div class="log-highlight-list">
                     <button
                       v-for="line in liveDiagnosticLineViews"
@@ -3017,6 +3246,25 @@ const closeActionOptions = computed(() => [
                             <p class="muted">{{ text.serviceLogDiagnosticEmpty }}</p>
                           </template>
                           <template v-else>
+                            <div class="scan-meta">
+                              <div class="pill ghost">
+                                {{ text.serviceLogAggregateCount }}: {{ historyDiagnosticGroups.length }}
+                              </div>
+                            </div>
+                            <div class="diagnostic-group-list">
+                              <button
+                                v-for="group in historyDiagnosticGroups"
+                                :key="`history-group-${group.key}`"
+                                class="diagnostic-group-button"
+                                :class="{ active: group.lineNumbers.includes(selectedHistoryDiagnosticLineNumber ?? -1) }"
+                                type="button"
+                                @click="focusHistoryDiagnostic(group.latestLineView.lineNumber)"
+                              >
+                                <strong>{{ group.label }}</strong>
+                                <span>{{ text.serviceLogAggregateOccurrences }}: {{ group.count }}</span>
+                                <span>{{ text.serviceLogLinePrefix }} {{ group.latestLineView.lineNumber }}</span>
+                              </button>
+                            </div>
                             <div class="log-highlight-list">
                               <button
                                 v-for="line in historyDiagnosticLineViews"

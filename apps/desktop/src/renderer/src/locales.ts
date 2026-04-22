@@ -175,6 +175,11 @@ interface LocaleMessages {
   serviceLogHighlightsTitle: string
   serviceLogDiagnosticEmpty: string
   serviceLogLinePrefix: string
+  serviceLogAggregateTitle: string
+  serviceLogAggregateCount: string
+  serviceLogAggregateOccurrences: string
+  serviceLogCopyAggregate: string
+  serviceLogExportAggregate: string
   serviceLogContextTitle: string
   serviceLogContextEmpty: string
   serviceLogContextRange: string
@@ -429,6 +434,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogHighlightsTitle: '异常与失败定位',
     serviceLogDiagnosticEmpty: '当前筛选结果里还没有识别到异常或失败日志。',
     serviceLogLinePrefix: '第',
+    serviceLogAggregateTitle: '异常聚合摘要',
+    serviceLogAggregateCount: '异常分组',
+    serviceLogAggregateOccurrences: '出现次数',
+    serviceLogCopyAggregate: '复制整合摘要',
+    serviceLogExportAggregate: '导出整合摘要',
     serviceLogContextTitle: '异常上下文',
     serviceLogContextEmpty: '当前还没有可展示的异常上下文。',
     serviceLogContextRange: '上下文范围',
@@ -679,6 +689,11 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogHighlightsTitle: 'Error And Failure Highlights',
     serviceLogDiagnosticEmpty: 'No error or failure lines were detected in the current filtered logs.',
     serviceLogLinePrefix: 'Line',
+    serviceLogAggregateTitle: 'Diagnostic Aggregation',
+    serviceLogAggregateCount: 'Diagnostic Groups',
+    serviceLogAggregateOccurrences: 'Occurrences',
+    serviceLogCopyAggregate: 'Copy Aggregate',
+    serviceLogExportAggregate: 'Export Aggregate',
     serviceLogContextTitle: 'Diagnostic Context',
     serviceLogContextEmpty: 'No diagnostic context is available right now.',
     serviceLogContextRange: 'Context Range',

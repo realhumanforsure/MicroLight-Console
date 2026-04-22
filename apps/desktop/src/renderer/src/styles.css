@@ -421,6 +421,32 @@ h1 {
   gap: 10px;
 }
 
+.diagnostic-group-list {
+  display: grid;
+  gap: 10px;
+}
+
+.diagnostic-group-button {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid rgba(121, 240, 200, 0.18);
+  background: rgba(8, 21, 30, 0.82);
+  color: #e6f0ff;
+  cursor: pointer;
+}
+
+.diagnostic-group-button span {
+  color: #97abc8;
+}
+
+.diagnostic-group-button.active {
+  border-color: rgba(121, 240, 200, 0.44);
+  background: rgba(12, 34, 42, 0.94);
+}
+
 .log-highlight-button {
   display: grid;
   gap: 6px;
