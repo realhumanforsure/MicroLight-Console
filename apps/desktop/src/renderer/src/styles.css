@@ -416,6 +416,50 @@ h1 {
   background: rgba(10, 19, 34, 0.85);
 }
 
+.failure-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.failure-summary-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(189, 210, 255, 0.12);
+  background: rgba(6, 13, 25, 0.72);
+}
+
+.failure-summary-card strong {
+  color: #edf4ff;
+}
+
+.failure-summary-card p,
+.failure-summary-card span {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.failure-summary-card p {
+  color: #d5e3f8;
+  word-break: break-word;
+}
+
+.failure-summary-card span {
+  color: #95a9c8;
+}
+
+.failure-summary-card--error {
+  border-color: rgba(255, 126, 126, 0.32);
+  background: rgba(45, 12, 19, 0.64);
+}
+
+.failure-summary-card--warn {
+  border-color: rgba(255, 197, 94, 0.24);
+  background: rgba(43, 28, 8, 0.58);
+}
+
 .log-highlight-list {
   display: grid;
   gap: 10px;
@@ -824,6 +868,10 @@ dd {
   }
 
   .log-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .failure-summary-grid {
     grid-template-columns: 1fr;
   }
 

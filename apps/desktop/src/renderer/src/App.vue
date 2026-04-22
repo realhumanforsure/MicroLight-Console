@@ -79,6 +79,14 @@ interface DiagnosticGroupView {
   lineNumbers: number[]
 }
 
+interface FailureSummaryView {
+  key: string
+  title: string
+  detail: string
+  hint: string
+  severity: 'error' | 'warn'
+}
+
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
@@ -936,6 +944,121 @@ function buildDiagnosticGroups(lineViews: LogLineView[]) {
   })
 }
 
+function findLogLineByPatterns(lineViews: LogLineView[], patterns: RegExp[]) {
+  return lineViews.find((lineView) => patterns.some((pattern) => pattern.test(lineView.text)))
+}
+
+function buildFailureSummaryViews(params: {
+  lineViews: LogLineView[]
+  diagnosticGroups: DiagnosticGroupView[]
+  serviceStatus?: ServiceInstanceState['status']
+  healthStatus?: ServiceInstanceState['healthStatus']
+  healthDetail?: string | null
+  portReachable?: boolean | null
+}) {
+  const summaries: FailureSummaryView[] = []
+
+  const pushSummary = (summary: FailureSummaryView) => {
+    if (summaries.some((item) => item.key === summary.key)) {
+      return
+    }
+
+    summaries.push(summary)
+  }
+
+  const portConflictLine = findLogLineByPatterns(params.lineViews, [
+    /\bport\b.*\balready in use\b/i,
+    /\baddress already in use\b/i,
+    /\bbindexception\b/i,
+    /\bconnector configured to listen on port\b/i
+  ])
+
+  if (portConflictLine) {
+    pushSummary({
+      key: 'port-conflict',
+      title: text.value.serviceFailurePortConflictTitle,
+      detail: portConflictLine.text,
+      hint: text.value.serviceFailurePortConflictHint,
+      severity: 'error'
+    })
+  }
+
+  const buildFailureLine = findLogLineByPatterns(params.lineViews, [
+    /\bbuild failure\b/i,
+    /\bcompilation failure\b/i,
+    /\bfailed to execute goal\b/i,
+    /\bcould not resolve dependencies\b/i
+  ])
+
+  if (buildFailureLine) {
+    pushSummary({
+      key: 'build-failure',
+      title: text.value.serviceFailureBuildTitle,
+      detail: buildFailureLine.text,
+      hint: text.value.serviceFailureBuildHint,
+      severity: 'error'
+    })
+  }
+
+  const beanFailureLine = findLogLineByPatterns(params.lineViews, [
+    /\bbeancreationexception\b/i,
+    /\bunsatisfieddependencyexception\b/i,
+    /\bnosuchbeandefinitionexception\b/i
+  ])
+
+  if (beanFailureLine) {
+    pushSummary({
+      key: 'bean-failure',
+      title: text.value.serviceFailureBeanTitle,
+      detail: beanFailureLine.text,
+      hint: text.value.serviceFailureBeanHint,
+      severity: 'error'
+    })
+  }
+
+  const dependencyFailureLine = findLogLineByPatterns(params.lineViews, [
+    /\bconnection refused\b/i,
+    /\bcommunications link failure\b/i,
+    /\bcould not connect to server\b/i,
+    /\bconnect timed out\b/i,
+    /\baccess denied for user\b/i
+  ])
+
+  if (dependencyFailureLine) {
+    pushSummary({
+      key: 'dependency-failure',
+      title: text.value.serviceFailureDependencyTitle,
+      detail: dependencyFailureLine.text,
+      hint: text.value.serviceFailureDependencyHint,
+      severity: 'warn'
+    })
+  }
+
+  if (params.healthStatus === 'unhealthy' || params.portReachable === false) {
+    pushSummary({
+      key: 'health-check',
+      title: text.value.serviceFailureHealthTitle,
+      detail:
+        params.healthDetail?.trim() ||
+        (params.portReachable === false ? text.value.serviceFailurePortClosedDetail : text.value.serviceFailureHealthUnknownDetail),
+      hint: text.value.serviceFailureHealthHint,
+      severity: 'warn'
+    })
+  }
+
+  if (params.serviceStatus === 'failed' && params.diagnosticGroups.length > 0) {
+    pushSummary({
+      key: 'root-cause',
+      title: text.value.serviceFailureRootCauseTitle,
+      detail: params.diagnosticGroups[0].label,
+      hint: text.value.serviceFailureRootCauseHint,
+      severity: 'error'
+    })
+  }
+
+  return summaries.slice(0, 4)
+}
+
 async function scrollToLogLine(panel: HTMLElement | null, lineNumber: number) {
   await nextTick()
 
@@ -1786,6 +1909,28 @@ const historyDiagnosticLineViews = computed(() =>
 const liveDiagnosticGroups = computed(() => buildDiagnosticGroups(filteredActiveLogLineViews.value).slice(0, 8))
 
 const historyDiagnosticGroups = computed(() => buildDiagnosticGroups(filteredHistoryLogLineViews.value).slice(0, 8))
+
+const liveFailureSummaryViews = computed(() =>
+  buildFailureSummaryViews({
+    lineViews: filteredActiveLogLineViews.value,
+    diagnosticGroups: liveDiagnosticGroups.value,
+    serviceStatus: activeLogInstance.value?.status,
+    healthStatus: activeLogInstance.value?.healthStatus,
+    healthDetail: activeLogInstance.value?.healthDetail ?? null,
+    portReachable: activeLogInstance.value?.portReachable ?? null
+  })
+)
+
+const historyFailureSummaryViews = computed(() =>
+  buildFailureSummaryViews({
+    lineViews: filteredHistoryLogLineViews.value,
+    diagnosticGroups: historyDiagnosticGroups.value,
+    serviceStatus: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.status : undefined,
+    healthStatus: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.healthStatus : undefined,
+    healthDetail: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.healthDetail ?? null : null,
+    portReachable: activeLogHistoryEntry.value?.isActive ? activeLogInstance.value?.portReachable ?? null : null
+  })
+)
 
 const selectedLiveDiagnosticLineView = computed(
   () =>
@@ -2976,6 +3121,33 @@ const closeActionOptions = computed(() => [
 
               <div class="log-summary-panel">
                 <div class="project-panel__subheader">
+                  <h3>{{ text.serviceFailureSummaryTitle }}</h3>
+                </div>
+
+                <template v-if="liveFailureSummaryViews.length === 0">
+                  <p class="muted">{{ text.serviceFailureSummaryEmpty }}</p>
+                </template>
+                <template v-else>
+                  <div class="failure-summary-grid">
+                    <article
+                      v-for="summary in liveFailureSummaryViews"
+                      :key="`live-failure-${summary.key}`"
+                      class="failure-summary-card"
+                      :class="{
+                        'failure-summary-card--error': summary.severity === 'error',
+                        'failure-summary-card--warn': summary.severity === 'warn'
+                      }"
+                    >
+                      <strong>{{ summary.title }}</strong>
+                      <p>{{ summary.detail }}</p>
+                      <span>{{ summary.hint }}</span>
+                    </article>
+                  </div>
+                </template>
+              </div>
+
+              <div class="log-summary-panel">
+                <div class="project-panel__subheader">
                   <h3>{{ text.serviceLogHighlightsTitle }}</h3>
                   <div class="log-toolbar__actions">
                     <button
@@ -3235,6 +3407,33 @@ const closeActionOptions = computed(() => [
                           >
                             {{ text.serviceLogHistoryTruncated }}
                           </div>
+                        </div>
+
+                        <div class="log-summary-panel">
+                          <div class="project-panel__subheader">
+                            <h3>{{ text.serviceFailureSummaryTitle }}</h3>
+                          </div>
+
+                          <template v-if="historyFailureSummaryViews.length === 0">
+                            <p class="muted">{{ text.serviceFailureSummaryEmpty }}</p>
+                          </template>
+                          <template v-else>
+                            <div class="failure-summary-grid">
+                              <article
+                                v-for="summary in historyFailureSummaryViews"
+                                :key="`history-failure-${summary.key}`"
+                                class="failure-summary-card"
+                                :class="{
+                                  'failure-summary-card--error': summary.severity === 'error',
+                                  'failure-summary-card--warn': summary.severity === 'warn'
+                                }"
+                              >
+                                <strong>{{ summary.title }}</strong>
+                                <p>{{ summary.detail }}</p>
+                                <span>{{ summary.hint }}</span>
+                              </article>
+                            </div>
+                          </template>
                         </div>
 
                         <div class="log-summary-panel">

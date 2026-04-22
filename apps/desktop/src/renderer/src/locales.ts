@@ -191,6 +191,22 @@ interface LocaleMessages {
   serviceLogHistoryLines: string
   serviceLogHistoryActive: string
   serviceLogHistoryTruncated: string
+  serviceFailureSummaryTitle: string
+  serviceFailureSummaryEmpty: string
+  serviceFailureRootCauseTitle: string
+  serviceFailureRootCauseHint: string
+  serviceFailurePortConflictTitle: string
+  serviceFailurePortConflictHint: string
+  serviceFailureBuildTitle: string
+  serviceFailureBuildHint: string
+  serviceFailureBeanTitle: string
+  serviceFailureBeanHint: string
+  serviceFailureDependencyTitle: string
+  serviceFailureDependencyHint: string
+  serviceFailureHealthTitle: string
+  serviceFailureHealthHint: string
+  serviceFailurePortClosedDetail: string
+  serviceFailureHealthUnknownDetail: string
   serviceIdle: string
   serviceBuilding: string
   serviceRunning: string
@@ -450,6 +466,22 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogHistoryLines: '总行数',
     serviceLogHistoryActive: '当前运行文件',
     serviceLogHistoryTruncated: '仅展示最近 400 行',
+    serviceFailureSummaryTitle: '启动失败摘要',
+    serviceFailureSummaryEmpty: '当前还没有识别到明确的启动失败摘要。',
+    serviceFailureRootCauseTitle: '根因候选',
+    serviceFailureRootCauseHint: '优先检查这组异常及其上下文，通常最接近启动失败的直接原因。',
+    serviceFailurePortConflictTitle: '端口被占用',
+    serviceFailurePortConflictHint: '更换服务端口，或停止已占用该端口的进程后再启动。',
+    serviceFailureBuildTitle: '构建阶段失败',
+    serviceFailureBuildHint: '先修复 Maven 构建报错，再重新执行启动流程。',
+    serviceFailureBeanTitle: 'Spring Bean 装配失败',
+    serviceFailureBeanHint: '检查配置类、条件装配和依赖注入是否缺失或冲突。',
+    serviceFailureDependencyTitle: '外部依赖不可用',
+    serviceFailureDependencyHint: '检查数据库、注册中心、消息队列或下游服务是否可连接。',
+    serviceFailureHealthTitle: '健康检查异常',
+    serviceFailureHealthHint: '确认服务是否已真正启动成功，以及健康检查路径与端口配置是否正确。',
+    serviceFailurePortClosedDetail: '服务端口当前不可达，应用可能未完成启动或已提前退出。',
+    serviceFailureHealthUnknownDetail: '健康检查未通过，但当前没有返回更详细的错误信息。',
     serviceIdle: '空闲',
     serviceBuilding: '构建中',
     serviceRunning: '运行中',
@@ -705,6 +737,22 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceLogHistoryLines: 'Total Lines',
     serviceLogHistoryActive: 'Current Active File',
     serviceLogHistoryTruncated: 'Showing the latest 400 lines only',
+    serviceFailureSummaryTitle: 'Startup Failure Summary',
+    serviceFailureSummaryEmpty: 'No clear startup failure summary is available yet.',
+    serviceFailureRootCauseTitle: 'Root Cause Candidate',
+    serviceFailureRootCauseHint: 'Start from this diagnostic group and its context. It is usually closest to the direct cause.',
+    serviceFailurePortConflictTitle: 'Port Conflict',
+    serviceFailurePortConflictHint: 'Use a different port or stop the process that is already listening on this port.',
+    serviceFailureBuildTitle: 'Build Phase Failed',
+    serviceFailureBuildHint: 'Fix the Maven build error first, then retry the startup flow.',
+    serviceFailureBeanTitle: 'Spring Bean Wiring Failed',
+    serviceFailureBeanHint: 'Check configuration classes, conditional beans, and missing or conflicting injections.',
+    serviceFailureDependencyTitle: 'External Dependency Unavailable',
+    serviceFailureDependencyHint: 'Check whether the database, registry, MQ, or downstream service is reachable.',
+    serviceFailureHealthTitle: 'Health Check Failed',
+    serviceFailureHealthHint: 'Verify the app really started, and confirm the health path and port are configured correctly.',
+    serviceFailurePortClosedDetail: 'The service port is currently unreachable. The app may have exited or not finished starting.',
+    serviceFailureHealthUnknownDetail: 'Health check failed, but no more detailed error message is available right now.',
     serviceIdle: 'Idle',
     serviceBuilding: 'Building',
     serviceRunning: 'Running',
