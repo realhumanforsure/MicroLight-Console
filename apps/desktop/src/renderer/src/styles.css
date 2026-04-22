@@ -386,6 +386,21 @@ h1 {
   word-break: break-all;
 }
 
+.log-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.log-toolbar__field {
+  margin: 0;
+}
+
+.log-toolbar__button {
+  min-height: 44px;
+}
+
 .scan-result {
   display: grid;
   gap: 16px;
@@ -670,6 +685,10 @@ dd {
   }
 
   .workspace-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .log-toolbar {
     grid-template-columns: 1fr;
   }
 

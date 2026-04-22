@@ -154,6 +154,18 @@ interface LocaleMessages {
   serviceMemory: string
   serviceLogFile: string
   serviceLogs: string
+  serviceLogSearch: string
+  serviceLogSearchPlaceholder: string
+  serviceLogLevel: string
+  serviceLogLevelAll: string
+  serviceLogLevelInfo: string
+  serviceLogLevelWarn: string
+  serviceLogLevelError: string
+  serviceLogLevelDebug: string
+  serviceLogPauseScroll: string
+  serviceLogResumeScroll: string
+  serviceLogPaused: string
+  serviceLogVisibleLines: string
   serviceLogHistoryTitle: string
   serviceLogHistoryLoading: string
   serviceLogHistoryEmpty: string
@@ -166,6 +178,7 @@ interface LocaleMessages {
   serviceStopped: string
   serviceFailed: string
   serviceNoLogs: string
+  serviceNoMatchingLogs: string
   servicePreparing: string
   serviceGroupTitle: string
   serviceGroupLaunchAll: string
@@ -381,6 +394,18 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceMemory: '内存',
     serviceLogFile: '日志文件',
     serviceLogs: '最近日志',
+    serviceLogSearch: '日志搜索',
+    serviceLogSearchPlaceholder: '输入关键字过滤日志内容',
+    serviceLogLevel: '日志级别',
+    serviceLogLevelAll: '全部',
+    serviceLogLevelInfo: 'INFO',
+    serviceLogLevelWarn: 'WARN',
+    serviceLogLevelError: 'ERROR',
+    serviceLogLevelDebug: 'DEBUG / TRACE',
+    serviceLogPauseScroll: '暂停跟随',
+    serviceLogResumeScroll: '恢复跟随',
+    serviceLogPaused: '自动跟随已暂停',
+    serviceLogVisibleLines: '当前展示',
     serviceLogHistoryTitle: '历史日志',
     serviceLogHistoryLoading: '正在读取历史日志...',
     serviceLogHistoryEmpty: '当前还没有可读取的历史日志文件。',
@@ -393,6 +418,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceStopped: '已停止',
     serviceFailed: '失败',
     serviceNoLogs: '当前还没有日志输出。',
+    serviceNoMatchingLogs: '没有匹配当前筛选条件的日志。',
     servicePreparing: '处理中...',
     serviceGroupTitle: '服务组编排',
     serviceGroupLaunchAll: '顺序启动服务组',
@@ -604,6 +630,18 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceMemory: 'Memory',
     serviceLogFile: 'Log File',
     serviceLogs: 'Recent Logs',
+    serviceLogSearch: 'Search Logs',
+    serviceLogSearchPlaceholder: 'Type a keyword to filter log content',
+    serviceLogLevel: 'Log Level',
+    serviceLogLevelAll: 'All',
+    serviceLogLevelInfo: 'INFO',
+    serviceLogLevelWarn: 'WARN',
+    serviceLogLevelError: 'ERROR',
+    serviceLogLevelDebug: 'DEBUG / TRACE',
+    serviceLogPauseScroll: 'Pause Follow',
+    serviceLogResumeScroll: 'Resume Follow',
+    serviceLogPaused: 'Auto-follow paused',
+    serviceLogVisibleLines: 'Visible Lines',
     serviceLogHistoryTitle: 'Log History',
     serviceLogHistoryLoading: 'Loading log history...',
     serviceLogHistoryEmpty: 'No historical log file is available yet.',
@@ -616,6 +654,7 @@ export const messages: Record<Locale, LocaleMessages> = {
     serviceStopped: 'Stopped',
     serviceFailed: 'Failed',
     serviceNoLogs: 'No logs yet.',
+    serviceNoMatchingLogs: 'No logs match the current filters.',
     servicePreparing: 'Working...',
     serviceGroupTitle: 'Service Group Orchestration',
     serviceGroupLaunchAll: 'Start Service Group',

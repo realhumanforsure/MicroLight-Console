@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import {
   APP_NAME,
   DEFAULT_BUILD_TOOL_PREFERENCE,
@@ -54,6 +54,8 @@ interface ServiceLaunchConfig {
   dependsOnServiceIds: string[]
 }
 
+type LogLevelFilter = 'all' | 'info' | 'warn' | 'error' | 'debug'
+
 const runtimeInfo = ref<DesktopRuntimeInfo | null>(null)
 const health = ref<HealthResponse | null>(null)
 const preflightReport = ref<ProjectPreflightReport | null>(null)
@@ -85,6 +87,11 @@ const releaseLoading = ref(false)
 const scanning = ref(false)
 const detecting = ref(false)
 const logHistoryLoading = ref(false)
+const liveLogSearchKeyword = ref('')
+const liveLogLevelFilter = ref<LogLevelFilter>('all')
+const liveLogFollowEnabled = ref(true)
+const historyLogSearchKeyword = ref('')
+const historyLogLevelFilter = ref<LogLevelFilter>('all')
 const errorMessage = ref('')
 const scanErrorMessage = ref('')
 const runtimeErrorMessage = ref('')
@@ -93,6 +100,7 @@ const serviceGroupMessage = ref('')
 const serviceActionState = ref<Record<string, boolean>>({})
 const serviceGroupActionRunning = ref(false)
 const serviceGroupStartupIntervalSeconds = ref('5')
+const liveLogPanelRef = ref<HTMLPreElement | null>(null)
 const text = computed(() => messages[locale.value])
 const logStreams = new Map<string, EventSource>()
 let refreshTimer: number | null = null
@@ -168,6 +176,12 @@ watch(selectedLogServiceId, (serviceId) => {
   if (!selectedProjectPath.value) {
     return
   }
+
+  liveLogSearchKeyword.value = ''
+  liveLogLevelFilter.value = 'all'
+  liveLogFollowEnabled.value = true
+  historyLogSearchKeyword.value = ''
+  historyLogLevelFilter.value = 'all'
 
   if (!serviceId) {
     logHistoryEntries.value = []
@@ -729,6 +743,63 @@ function formatFileSize(sizeBytes: number) {
   return `${(sizeBytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+function matchesLogLevel(line: string, level: LogLevelFilter) {
+  if (level === 'all') {
+    return true
+  }
+
+  switch (level) {
+    case 'info':
+      return /\binfo\b/i.test(line)
+    case 'warn':
+      return /\bwarn(?:ing)?\b/i.test(line)
+    case 'error':
+      return /\berror\b/i.test(line) || /\bexception\b/i.test(line)
+    case 'debug':
+      return /\bdebug\b/i.test(line) || /\btrace\b/i.test(line)
+    default:
+      return true
+  }
+}
+
+function filterLogLines(lines: string[], keyword: string, level: LogLevelFilter) {
+  const normalizedKeyword = keyword.trim().toLowerCase()
+
+  return lines.filter((line) => {
+    if (!matchesLogLevel(line, level)) {
+      return false
+    }
+
+    if (!normalizedKeyword) {
+      return true
+    }
+
+    return line.toLowerCase().includes(normalizedKeyword)
+  })
+}
+
+async function syncLiveLogScroll(force = false) {
+  if (!force && !liveLogFollowEnabled.value) {
+    return
+  }
+
+  await nextTick()
+
+  if (!liveLogPanelRef.value) {
+    return
+  }
+
+  liveLogPanelRef.value.scrollTop = liveLogPanelRef.value.scrollHeight
+}
+
+function toggleLiveLogFollow() {
+  liveLogFollowEnabled.value = !liveLogFollowEnabled.value
+
+  if (liveLogFollowEnabled.value) {
+    void syncLiveLogScroll(true)
+  }
+}
+
 function createServiceLaunchRequest(modulePath: string, artifactId: string, candidate: ServiceCandidate) {
   const launchConfig = getLaunchConfig(artifactId, candidate)
   const serviceId = getServiceId(artifactId, candidate.mainClass)
@@ -1179,6 +1250,8 @@ async function loadLogHistoryContent(serviceId: string, entryId: string) {
 
 function selectLogHistoryEntry(serviceId: string, entryId: string) {
   selectedLogHistoryId.value = entryId
+  historyLogSearchKeyword.value = ''
+  historyLogLevelFilter.value = 'all'
   void loadLogHistoryContent(serviceId, entryId)
 }
 
@@ -1225,6 +1298,52 @@ const activeLogInstance = computed(() => {
 
 const activeLogHistoryEntry = computed(() =>
   logHistoryEntries.value.find((entry) => entry.id === selectedLogHistoryId.value) ?? null
+)
+
+const logLevelOptions = computed(() => [
+  { value: 'all' satisfies LogLevelFilter, label: text.value.serviceLogLevelAll },
+  { value: 'info' satisfies LogLevelFilter, label: text.value.serviceLogLevelInfo },
+  { value: 'warn' satisfies LogLevelFilter, label: text.value.serviceLogLevelWarn },
+  { value: 'error' satisfies LogLevelFilter, label: text.value.serviceLogLevelError },
+  { value: 'debug' satisfies LogLevelFilter, label: text.value.serviceLogLevelDebug }
+])
+
+const filteredActiveLogLines = computed(() =>
+  filterLogLines(activeLogInstance.value?.logLines ?? [], liveLogSearchKeyword.value, liveLogLevelFilter.value)
+)
+
+const filteredHistoryLogLines = computed(() =>
+  filterLogLines(activeLogHistory.value?.lines ?? [], historyLogSearchKeyword.value, historyLogLevelFilter.value)
+)
+
+watch(
+  () =>
+    [
+      selectedLogServiceId.value,
+      activeLogInstance.value?.logLines.length ?? 0,
+      filteredActiveLogLines.value.length,
+      liveLogFollowEnabled.value
+    ] as const,
+  async ([serviceId, totalLines, visibleLines, followEnabled], previousState) => {
+    const previousServiceId = previousState?.[0] ?? ''
+    const previousFollowEnabled = previousState?.[3] ?? false
+
+    if (!serviceId) {
+      return
+    }
+
+    const force = serviceId !== previousServiceId || (followEnabled && !previousFollowEnabled)
+
+    if (!followEnabled && !force) {
+      return
+    }
+
+    if (!force && totalLines === 0 && visibleLines === 0) {
+      return
+    }
+
+    await syncLiveLogScroll(force)
+  }
 )
 
 const logWorkspaceServices = computed(() =>
@@ -2249,9 +2368,56 @@ const closeActionOptions = computed(() => [
                 <strong>{{ activeLogInstance.healthDetail ?? text.runtimePending }}</strong>
               </div>
 
+              <div class="log-toolbar">
+                <label class="settings-field log-toolbar__field">
+                  <span>{{ text.serviceLogSearch }}</span>
+                  <input
+                    v-model="liveLogSearchKeyword"
+                    type="text"
+                    :placeholder="text.serviceLogSearchPlaceholder"
+                  />
+                </label>
+
+                <label class="settings-field log-toolbar__field">
+                  <span>{{ text.serviceLogLevel }}</span>
+                  <select v-model="liveLogLevelFilter">
+                    <option
+                      v-for="option in logLevelOptions"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </label>
+
+                <button
+                  class="secondary-button log-toolbar__button"
+                  type="button"
+                  @click="toggleLiveLogFollow"
+                >
+                  {{ liveLogFollowEnabled ? text.serviceLogPauseScroll : text.serviceLogResumeScroll }}
+                </button>
+              </div>
+
+              <div class="scan-meta">
+                <div class="pill ghost">
+                  {{ text.serviceLogVisibleLines }}: {{ filteredActiveLogLines.length }} / {{ activeLogInstance.logLines.length }}
+                </div>
+                <div
+                  v-if="!liveLogFollowEnabled"
+                  class="pill ghost pill--warn"
+                >
+                  {{ text.serviceLogPaused }}
+                </div>
+              </div>
+
               <div class="logs-panel logs-panel--workspace">
                 <span>{{ text.serviceLogs }}</span>
-                <pre>{{ activeLogInstance.logLines.join('\n') || text.serviceNoLogs }}</pre>
+                <pre ref="liveLogPanelRef">{{
+                  filteredActiveLogLines.join('\n') ||
+                  (activeLogInstance.logLines.length > 0 ? text.serviceNoMatchingLogs : text.serviceNoLogs)
+                }}</pre>
               </div>
 
               <div class="service-group-panel">
@@ -2292,9 +2458,36 @@ const closeActionOptions = computed(() => [
                           <strong>{{ activeLogHistory.entry.filePath }}</strong>
                         </div>
 
+                        <div class="log-toolbar">
+                          <label class="settings-field log-toolbar__field">
+                            <span>{{ text.serviceLogSearch }}</span>
+                            <input
+                              v-model="historyLogSearchKeyword"
+                              type="text"
+                              :placeholder="text.serviceLogSearchPlaceholder"
+                            />
+                          </label>
+
+                          <label class="settings-field log-toolbar__field">
+                            <span>{{ text.serviceLogLevel }}</span>
+                            <select v-model="historyLogLevelFilter">
+                              <option
+                                v-for="option in logLevelOptions"
+                                :key="option.value"
+                                :value="option.value"
+                              >
+                                {{ option.label }}
+                              </option>
+                            </select>
+                          </label>
+                        </div>
+
                         <div class="scan-meta">
                           <div class="pill ghost">
                             {{ text.serviceLogHistoryLines }}: {{ activeLogHistory.totalLines }}
+                          </div>
+                          <div class="pill ghost">
+                            {{ text.serviceLogVisibleLines }}: {{ filteredHistoryLogLines.length }} / {{ activeLogHistory.lines.length }}
                           </div>
                           <div
                             v-if="activeLogHistory.entry.isActive"
@@ -2312,7 +2505,10 @@ const closeActionOptions = computed(() => [
 
                         <div class="logs-panel logs-panel--workspace">
                           <span>{{ text.serviceLogHistoryTitle }}</span>
-                          <pre>{{ activeLogHistory.lines.join('\n') || text.serviceNoLogs }}</pre>
+                          <pre>{{
+                            filteredHistoryLogLines.join('\n') ||
+                            (activeLogHistory.lines.length > 0 ? text.serviceNoMatchingLogs : text.serviceNoLogs)
+                          }}</pre>
                         </div>
                       </template>
                     </div>
