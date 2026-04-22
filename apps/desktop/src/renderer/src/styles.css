@@ -391,7 +391,6 @@ select {
   overflow: auto;
 }
 
-.workspace-scroll-hidden,
 .workspace-scroll-hidden::-webkit-scrollbar,
 .workbench-service-list::-webkit-scrollbar,
 .workspace-tabs::-webkit-scrollbar {
