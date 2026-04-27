@@ -268,7 +268,7 @@ code {
 
 .workspace-main {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(260px, 0.9fr);
   gap: 14px;
   min-height: 0;
   overflow: hidden;
@@ -425,6 +425,10 @@ code {
 .control-panel {
   display: grid;
   gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  align-content: start;
+  padding-right: 6px;
 }
 
 .service-summary {
@@ -773,6 +777,10 @@ code {
   .quick-grid,
   .command-line {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-main {
+    grid-template-rows: auto minmax(320px, 1fr);
   }
 
   .status-strip {
