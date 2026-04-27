@@ -21,6 +21,7 @@ const props = defineProps<{
   instance: ServiceInstance | null
   runtime: RuntimeDetectionResult | null
   busy: boolean
+  preferCollapsed: boolean
   modelValue: LaunchForm
 }>()
 
@@ -31,6 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const portError = ref('')
+const collapsed = ref(false)
 
 const canLaunch = computed(() => {
   if (!props.service || !props.runtime?.java.available || !props.runtime.buildToolKind) {
@@ -101,11 +103,30 @@ const launchButtonLabel = computed(() => {
   return '启动服务'
 })
 
+const collapseButtonLabel = computed(() => (collapsed.value ? '展开配置' : '收起配置'))
+
 watch(
   () => props.modelValue.runtimePort,
   () => {
     portError.value = ''
   }
+)
+
+watch(
+  () => [props.service?.serviceId ?? '', props.preferCollapsed] as const,
+  ([serviceId, preferCollapsed], previousValue) => {
+    const previousServiceId = previousValue?.[0] ?? ''
+
+    if (serviceId !== previousServiceId) {
+      collapsed.value = preferCollapsed
+      return
+    }
+
+    if (preferCollapsed) {
+      collapsed.value = true
+    }
+  },
+  { immediate: true }
 )
 
 function updateField<K extends keyof LaunchForm>(key: K, value: LaunchForm[K]) {
@@ -172,16 +193,30 @@ function getRelativeModulePath(rootPath: string, modulePath: string) {
 
   return relative.length > 0 ? relative : '.'
 }
+
+function toggleCollapsed() {
+  collapsed.value = !collapsed.value
+}
 </script>
 
 <template>
-  <section class="panel panel--compact control-panel">
+  <section class="panel panel--compact control-panel" :class="{ 'control-panel--collapsed': collapsed }">
     <div class="panel__header">
       <div>
         <h2>启动配置</h2>
         <p class="panel__hint">把高频参数前置，低频参数收进原始命令预览和高级选项。</p>
       </div>
-      <span v-if="service" class="pill">{{ service.artifactId }}</span>
+      <div class="panel__header-actions">
+        <button
+          v-if="service"
+          class="secondary-button secondary-button--compact"
+          type="button"
+          @click="toggleCollapsed"
+        >
+          {{ collapseButtonLabel }}
+        </button>
+        <span v-if="service" class="pill">{{ service.artifactId }}</span>
+      </div>
     </div>
 
     <div v-if="!service" class="empty-state">
@@ -217,7 +252,7 @@ function getRelativeModulePath(rootPath: string, modulePath: string) {
         </div>
       </div>
 
-      <div class="quick-grid">
+      <div v-if="!collapsed" class="quick-grid">
         <label class="field">
           <span>端口</span>
           <input
@@ -260,7 +295,7 @@ function getRelativeModulePath(rootPath: string, modulePath: string) {
         </label>
       </div>
 
-      <div class="command-preview">
+      <div v-if="!collapsed" class="command-preview">
         <div class="command-preview__header">
           <strong>执行预览</strong>
           <label class="checkbox-row checkbox-row--quiet">
@@ -303,7 +338,7 @@ function getRelativeModulePath(rootPath: string, modulePath: string) {
         </button>
       </div>
 
-      <details class="advanced-options">
+      <details v-if="!collapsed" class="advanced-options">
         <summary>高级信息</summary>
 
         <div class="service-summary">

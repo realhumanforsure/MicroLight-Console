@@ -56,6 +56,14 @@ const activeLogs = computed<LogEvent[]>(() => {
   return activeServiceId.value ? logMap[activeServiceId.value] ?? [] : []
 })
 
+const prefersLogFocus = computed(() => {
+  if (activeLogs.value.length > 0) {
+    return true
+  }
+
+  return activeInstance.value !== null
+})
+
 const runningServiceCount = computed(() => {
   return Object.values(instanceMap).filter((instance) => instance.status === 'running').length
 })
@@ -314,6 +322,7 @@ async function handleStop(serviceId: string) {
           :instance="activeInstance"
           :runtime="runtime"
           :busy="busy"
+          :prefer-collapsed="prefersLogFocus"
           @launch="handleLaunch"
           @stop="handleStop"
         />

@@ -321,7 +321,7 @@ fn create_java_args(request: &ServiceLaunchRequest, jar_path: &Path) -> Result<V
     let mut args = shell_words::split(&request.jvm_args)
         .map_err(|error| format!("JVM 参数解析失败：{error}"))?;
     args.push("-jar".to_string());
-    args.push(jar_path.to_string_lossy().to_string());
+    args.push(normalize_path_for_process(jar_path));
     args.extend(
         shell_words::split(&request.program_args)
             .map_err(|error| format!("程序参数解析失败：{error}"))?,
@@ -337,6 +337,23 @@ fn create_java_args(request: &ServiceLaunchRequest, jar_path: &Path) -> Result<V
     }
 
     Ok(args)
+}
+
+fn normalize_path_for_process(path: &Path) -> String {
+    let raw = path.to_string_lossy().to_string();
+
+    #[cfg(windows)]
+    {
+        if let Some(stripped) = raw.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{stripped}");
+        }
+
+        if let Some(stripped) = raw.strip_prefix(r"\\?\") {
+            return stripped.to_string();
+        }
+    }
+
+    raw
 }
 
 fn resolve_build_tool(root_path: &str) -> Result<BuildTool, String> {
@@ -552,7 +569,7 @@ struct BuildTool {
 
 #[cfg(test)]
 mod tests {
-    use super::{create_build_args, create_java_args};
+    use super::{create_build_args, create_java_args, normalize_path_for_process};
     use crate::models::ServiceLaunchRequest;
     use std::path::{Path, PathBuf};
 
@@ -605,5 +622,11 @@ mod tests {
         assert!(args.contains(&"--feature.alpha=true".to_string()));
         assert!(args.contains(&"--server.port=18081".to_string()));
         assert!(args.contains(&"--spring.profiles.active=local,dev".to_string()));
+    }
+
+    #[test]
+    fn strips_windows_verbatim_prefix_for_process_arguments() {
+        let normalized = normalize_path_for_process(Path::new(r"\\?\D:\repo\service-app\target\order.jar"));
+        assert_eq!(normalized, r"D:\repo\service-app\target\order.jar");
     }
 }

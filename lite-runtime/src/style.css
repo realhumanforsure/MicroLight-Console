@@ -268,7 +268,7 @@ code {
 
 .workspace-main {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(260px, 0.9fr);
+  grid-template-rows: minmax(240px, 0.8fr) minmax(360px, 1.2fr);
   gap: 14px;
   min-height: 0;
   overflow: hidden;
@@ -285,6 +285,12 @@ code {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.panel__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .pill {
@@ -429,6 +435,14 @@ code {
   overflow: auto;
   align-content: start;
   padding-right: 6px;
+}
+
+.control-panel--collapsed {
+  gap: 10px;
+}
+
+.control-panel--collapsed .service-summary--hero {
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
 }
 
 .service-summary {
@@ -637,6 +651,10 @@ code {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.console-panel .panel__header {
+  margin-bottom: 10px;
+}
+
 .console-toolbar {
   display: flex;
   align-items: center;
@@ -749,6 +767,10 @@ code {
   .service-summary--hero,
   .quick-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-main {
+    grid-template-rows: minmax(200px, 0.65fr) minmax(420px, 1.35fr);
   }
 }
 
