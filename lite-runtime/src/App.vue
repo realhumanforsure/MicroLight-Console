@@ -56,6 +56,24 @@ const activeLogs = computed<LogEvent[]>(() => {
   return activeServiceId.value ? logMap[activeServiceId.value] ?? [] : []
 })
 
+const runningServiceCount = computed(() => {
+  return Object.values(instanceMap).filter((instance) => instance.status === 'running').length
+})
+
+const failedServiceCount = computed(() => {
+  return Object.values(instanceMap).filter((instance) => instance.status === 'failed').length
+})
+
+const runtimeSummary = computed(() => {
+  if (!runtime.value) {
+    return '等待扫描后检测 Java 与构建链路'
+  }
+
+  const javaLabel = runtime.value.java.version ?? 'missing'
+  const buildLabel = runtime.value.buildToolKind ?? 'missing'
+  return `Java ${javaLabel} · ${buildLabel}`
+})
+
 const activeLaunchForm = computed<LaunchForm>({
   get() {
     if (!activeServiceId.value) {
@@ -122,6 +140,15 @@ function createLaunchForm(service: ServiceCandidate | null): LaunchForm {
     programArgs: '',
     springProfiles: ''
   }
+}
+
+function clearActiveLogs() {
+  if (!activeServiceId.value) {
+    return
+  }
+
+  logMap[activeServiceId.value] = []
+  statusMessage.value = '当前服务的界面日志已清空。'
 }
 
 async function chooseProject() {
@@ -208,31 +235,64 @@ async function handleStop(serviceId: string) {
 <template>
   <main class="shell">
     <header class="topbar">
-      <div>
+      <div class="topbar__intro">
         <p class="eyebrow">MicroLight Lite</p>
-        <h1>Spring Boot 启动与实时日志</h1>
+        <h1>本地 Spring Boot 启动台</h1>
+        <p class="topbar__summary">
+          聚焦扫描、启动和实时日志，把高频动作压到一屏里，给熟手留出原始命令预览。
+        </p>
       </div>
-      <div class="toolbar">
-        <input
-          v-model="projectPath"
-          class="path-input"
-          type="text"
-          placeholder="选择 Maven 项目目录"
-        />
-        <button class="secondary-button" type="button" @click="chooseProject">
-          选择目录
-        </button>
-        <button class="primary-button" type="button" :disabled="busy" @click="handleScanProject">
-          扫描项目
-        </button>
+      <div class="topbar__actions">
+        <div class="toolbar">
+          <input
+            v-model="projectPath"
+            class="path-input"
+            type="text"
+            placeholder="选择 Maven 项目目录"
+          />
+          <button class="secondary-button" type="button" @click="chooseProject">
+            选择目录
+          </button>
+          <button class="primary-button" type="button" :disabled="busy" @click="handleScanProject">
+            {{ busy ? '处理中...' : '扫描项目' }}
+          </button>
+        </div>
+        <div class="runtime-banner">
+          <span class="runtime-banner__label">Runtime</span>
+          <strong>{{ runtimeSummary }}</strong>
+        </div>
       </div>
     </header>
 
+    <section class="overview-strip">
+      <article class="overview-tile">
+        <span class="overview-tile__label">项目</span>
+        <strong>{{ projectScan?.artifactId ?? '未选择项目' }}</strong>
+        <small>{{ projectPath || '选择一个 Maven 工程后开始扫描' }}</small>
+      </article>
+      <article class="overview-tile">
+        <span class="overview-tile__label">可启动服务</span>
+        <strong>{{ projectScan?.services.length ?? 0 }}</strong>
+        <small>{{ projectScan?.moduleCount ?? 0 }} 个模块已纳入扫描</small>
+      </article>
+      <article class="overview-tile">
+        <span class="overview-tile__label">运行中</span>
+        <strong>{{ runningServiceCount }}</strong>
+        <small v-if="failedServiceCount > 0">{{ failedServiceCount }} 个服务最近启动失败</small>
+        <small v-else>当前无失败告警</small>
+      </article>
+      <article class="overview-tile overview-tile--status">
+        <span class="overview-tile__label">状态</span>
+        <strong>{{ statusMessage }}</strong>
+      </article>
+    </section>
+
     <section class="status-strip">
-      <span>{{ statusMessage }}</span>
-      <span v-if="runtime" class="muted">
-        Java: {{ runtime.java.version ?? 'missing' }} ·
-        Build: {{ runtime.buildToolKind ?? 'missing' }}
+      <span class="status-strip__label">Workspace</span>
+      <span class="status-strip__text">{{ statusMessage }}</span>
+      <span v-if="runtime" class="status-strip__meta muted">
+        Java {{ runtime.java.available ? 'ready' : 'missing' }} ·
+        Build {{ runtime.buildToolKind ?? 'missing' }}
       </span>
     </section>
 
@@ -249,6 +309,7 @@ async function handleStop(serviceId: string) {
       <section class="workspace-main">
         <ServiceControls
           v-model="activeLaunchForm"
+          :root-path="projectPath"
           :service="activeService"
           :instance="activeInstance"
           :runtime="runtime"
@@ -260,6 +321,7 @@ async function handleStop(serviceId: string) {
         <LogConsole
           :service="activeService"
           :logs="activeLogs"
+          @clear="clearActiveLogs"
         />
       </section>
     </section>
