@@ -66,10 +66,7 @@ watch(
 <template>
   <section class="panel console-panel">
     <div class="panel__header">
-      <div>
-        <h2>实时日志</h2>
-        <p class="panel__hint">构建输出和运行日志共享一条时间线，默认自动跟随最新输出。</p>
-      </div>
+      <h2>实时日志</h2>
       <div class="console-toolbar">
         <label class="checkbox-row checkbox-row--quiet">
           <input v-model="autoFollow" type="checkbox" />

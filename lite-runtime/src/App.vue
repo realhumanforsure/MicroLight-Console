@@ -56,6 +56,10 @@ const activeLogs = computed<LogEvent[]>(() => {
   return activeServiceId.value ? logMap[activeServiceId.value] ?? [] : []
 })
 
+const hasActiveLaunch = computed(() => {
+  return Object.values(instanceMap).some((instance) => instance.status === 'building' || instance.status === 'running')
+})
+
 const prefersLogFocus = computed(() => {
   if (activeLogs.value.length > 0) {
     return true
@@ -81,6 +85,8 @@ const runtimeSummary = computed(() => {
   const buildLabel = runtime.value.buildToolKind ?? 'missing'
   return `Java ${javaLabel} · ${buildLabel}`
 })
+
+const overviewExpanded = ref(true)
 
 const activeLaunchForm = computed<LaunchForm>({
   get() {
@@ -140,6 +146,16 @@ watch(activeService, (service) => {
   }
 })
 
+watch(
+  hasActiveLaunch,
+  (value) => {
+    if (value) {
+      overviewExpanded.value = false
+    }
+  },
+  { immediate: true }
+)
+
 function createLaunchForm(service: ServiceCandidate | null): LaunchForm {
   return {
     runtimePort: service?.defaultPort ? String(service.defaultPort) : '',
@@ -157,6 +173,10 @@ function clearActiveLogs() {
 
   logMap[activeServiceId.value] = []
   statusMessage.value = '当前服务的界面日志已清空。'
+}
+
+function toggleOverview() {
+  overviewExpanded.value = !overviewExpanded.value
 }
 
 async function chooseProject() {
@@ -272,7 +292,7 @@ async function handleStop(serviceId: string) {
       </div>
     </header>
 
-    <section class="overview-strip">
+    <section v-if="overviewExpanded" class="overview-strip">
       <article class="overview-tile">
         <span class="overview-tile__label">项目</span>
         <strong>{{ projectScan?.artifactId ?? '未选择项目' }}</strong>
@@ -298,6 +318,14 @@ async function handleStop(serviceId: string) {
     <section class="status-strip">
       <span class="status-strip__label">Workspace</span>
       <span class="status-strip__text">{{ statusMessage }}</span>
+      <button
+        v-if="projectScan"
+        class="secondary-button secondary-button--compact"
+        type="button"
+        @click="toggleOverview"
+      >
+        {{ overviewExpanded ? '收起项目' : '展开项目' }}
+      </button>
       <span v-if="runtime" class="status-strip__meta muted">
         Java {{ runtime.java.available ? 'ready' : 'missing' }} ·
         Build {{ runtime.buildToolKind ?? 'missing' }}

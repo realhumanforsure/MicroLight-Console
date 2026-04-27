@@ -32,7 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const portError = ref('')
-const collapsed = ref(false)
+const collapsed = ref(true)
 
 const canLaunch = computed(() => {
   if (!props.service || !props.runtime?.java.available || !props.runtime.buildToolKind) {
@@ -118,7 +118,7 @@ watch(
     const previousServiceId = previousValue?.[0] ?? ''
 
     if (serviceId !== previousServiceId) {
-      collapsed.value = preferCollapsed
+      collapsed.value = true
       return
     }
 
@@ -201,11 +201,8 @@ function toggleCollapsed() {
 
 <template>
   <section class="panel panel--compact control-panel" :class="{ 'control-panel--collapsed': collapsed }">
-    <div class="panel__header">
-      <div>
-        <h2>启动配置</h2>
-        <p class="panel__hint">把高频参数前置，低频参数收进原始命令预览和高级选项。</p>
-      </div>
+    <div v-if="!service || !collapsed" class="panel__header">
+      <h2>启动配置</h2>
       <div class="panel__header-actions">
         <button
           v-if="service"
@@ -222,6 +219,40 @@ function toggleCollapsed() {
     <div v-if="!service" class="empty-state">
       先从左侧选择一个服务
     </div>
+
+    <template v-else-if="collapsed">
+      <div class="control-strip control-strip--single-row">
+        <div class="control-strip__service">
+          <strong>{{ service.mainClass.split('.').pop() }}</strong>
+          <small>{{ service.artifactId }}</small>
+        </div>
+        <div class="actions actions--inline control-strip__actions">
+          <button
+            class="secondary-button"
+            type="button"
+            @click="toggleCollapsed"
+          >
+            展开配置
+          </button>
+          <button
+            class="primary-button"
+            type="button"
+            :disabled="!canLaunch || busy"
+            @click="submitLaunch"
+          >
+            {{ launchButtonLabel }}
+          </button>
+          <button
+            class="secondary-button"
+            type="button"
+            :disabled="!canStop || busy || !instance"
+            @click="instance && emit('stop', instance.serviceId)"
+          >
+            停止服务
+          </button>
+        </div>
+      </div>
+    </template>
 
     <template v-else>
       <div class="service-summary service-summary--compact service-summary--hero">

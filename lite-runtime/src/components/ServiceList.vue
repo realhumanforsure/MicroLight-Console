@@ -16,6 +16,10 @@ function getStatusLabel(serviceId: string, instances: Record<string, ServiceInst
   return instances[serviceId]?.status ?? 'idle'
 }
 
+function getStatusTone(serviceId: string, instances: Record<string, ServiceInstance>) {
+  return getStatusLabel(serviceId, instances)
+}
+
 const searchQuery = ref('')
 const filteredServices = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase()
@@ -45,10 +49,7 @@ function getDisplayName(service: ServiceCandidate, instances: Record<string, Ser
 <template>
   <aside class="panel sidebar">
     <div class="panel__header">
-      <div>
-        <h2>服务</h2>
-        <p class="panel__hint">扫描结果按服务维度聚合，支持快速筛选和状态浏览。</p>
-      </div>
+      <h2>服务</h2>
       <span class="pill">{{ services.length }}</span>
     </div>
 
@@ -80,12 +81,18 @@ function getDisplayName(service: ServiceCandidate, instances: Record<string, Ser
           v-for="service in filteredServices"
           :key="service.serviceId"
           class="service-item"
-          :class="{ active: service.serviceId === activeServiceId }"
+          :class="[
+            { active: service.serviceId === activeServiceId },
+            `service-item--${getStatusTone(service.serviceId, instances)}`
+          ]"
           type="button"
           @click="emit('select', service.serviceId)"
         >
           <div class="service-item__row">
-            <strong>{{ getDisplayName(service, instances) }}</strong>
+            <div class="service-item__title">
+              <span class="service-state-dot" :data-status="getStatusLabel(service.serviceId, instances)"></span>
+              <strong>{{ getDisplayName(service, instances) }}</strong>
+            </div>
             <span class="status-badge" :data-status="getStatusLabel(service.serviceId, instances)">
               {{ getStatusLabel(service.serviceId, instances) }}
             </span>
