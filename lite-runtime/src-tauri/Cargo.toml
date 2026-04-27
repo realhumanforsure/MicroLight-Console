@@ -1,0 +1,29 @@
+[package]
+name = "microlight_lite"
+version = "0.1.0"
+description = "A lightweight Spring Boot launcher with live logs"
+authors = ["realhumanforsure"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "microlight_lite_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.6", features = [] }
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+pathdiff = "0.2"
+regex = "1.12"
+roxmltree = "0.21"
+rfd = "0.15"
+serde = { version = "1.0", features = ["derive"] }
+shell-words = "1.1"
+tauri = { version = "2.10.3", features = [] }
+walkdir = "2.5"
