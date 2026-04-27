@@ -264,10 +264,26 @@ async function handleStop(serviceId: string) {
   <main class="shell">
     <header class="topbar">
       <div class="topbar__intro">
-        <p class="eyebrow">MicroLight Lite</p>
-        <h1>本地 Spring Boot 启动台</h1>
+        <h1>MicroLight Lite 控制台</h1>
         <p class="topbar__summary">
-          聚焦扫描、启动和实时日志，把高频动作压到一屏里，给熟手留出原始命令预览。
+          测试版仅供体验，问题与建议请前往
+          <a
+            class="topbar__link topbar__link--repo"
+            href="https://github.com/realhumanforsure/MicroLight-Console"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GitHub
+          </a>
+          提交
+          <a
+            class="topbar__link topbar__link--issues"
+            href="https://github.com/realhumanforsure/MicroLight-Console/issues"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Issue
+          </a>
         </p>
       </div>
       <div class="topbar__actions">

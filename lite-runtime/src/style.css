@@ -143,11 +143,21 @@ code {
   font-size: 13px;
 }
 
-.eyebrow {
-  margin: 0;
-  color: #8da6d0;
-  font-size: 11px;
-  text-transform: uppercase;
+.topbar__link {
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.topbar__link:hover {
+  text-decoration: underline;
+}
+
+.topbar__link--repo {
+  color: #81b5ff;
+}
+
+.topbar__link--issues {
+  color: #7fddb0;
 }
 
 .toolbar {
